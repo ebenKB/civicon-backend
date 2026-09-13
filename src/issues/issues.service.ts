@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, Model, Types } from 'mongoose';
+import { Model, QueryFilter, Types } from 'mongoose';
 import { CreateIssueDto } from './dto/create-issue.dto.js';
 import { ListIssuesQuery } from './dto/list-issues.query.js';
 import { Issue, IssueDocument } from './schemas/issue.schema.js';
@@ -27,7 +27,7 @@ export class IssuesService {
   }
 
   findAll(query: ListIssuesQuery): Promise<IssueDocument[]> {
-    const filter: FilterQuery<IssueDocument> = {};
+    const filter: QueryFilter<IssueDocument> = {};
     if (query.status) {
       filter.status = query.status;
     }

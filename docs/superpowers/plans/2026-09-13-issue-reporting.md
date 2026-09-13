@@ -18,6 +18,8 @@
 - **Global filter already registered:** `MongoExceptionFilter` maps `CastError` → 400, `ValidationError` → 400, duplicate key (11000) → 409. Do not hand-roll those.
 - **Global guards already registered:** `JwtAuthGuard` then `RolesGuard`, as `APP_GUARD`. Every route is default-deny. Use `@Public()` to opt out and `@Roles(...)` to require a role.
 - **Query parameters arrive as strings.** `enableImplicitConversion` is NOT set, so numeric query DTO fields need `@Type(() => Number)` from `class-transformer`.
+- **Mongoose 9 renamed `FilterQuery` to `QueryFilter`.** The old name is not exported.
+- **A type used in a decorated signature needs `import type`,** because `isolatedModules` and `emitDecoratorMetadata` are both on.
 - **No new dependencies.** Everything needed (`class-validator`, `class-transformer`, `@nestjs/mapped-types`) is already installed.
 - **Vitest globals are on** (`describe`, `it`, `expect`, `vi` need no import). Unit specs live beside their source as `*.spec.ts`; e2e specs live in `test/` as `*.e2e-spec.ts`.
 - **e2e tests need a running database** (`docker compose up -d`) and `JWT_SECRET` in `.env`. The suite refuses to run unless the connected database name ends in `_test`.
@@ -691,7 +693,7 @@ Create `src/issues/issues.service.ts`:
 ```ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, Model, Types } from 'mongoose';
+import { Model, QueryFilter, Types } from 'mongoose';
 import { CreateIssueDto } from './dto/create-issue.dto.js';
 import { ListIssuesQuery } from './dto/list-issues.query.js';
 import { Issue, IssueDocument } from './schemas/issue.schema.js';
@@ -718,7 +720,7 @@ export class IssuesService {
   }
 
   findAll(query: ListIssuesQuery): Promise<IssueDocument[]> {
-    const filter: FilterQuery<IssueDocument> = {};
+    const filter: QueryFilter<IssueDocument> = {};
     if (query.status) {
       filter.status = query.status;
     }
@@ -888,7 +890,9 @@ import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Public } from '../auth/decorators/public.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
-import { AuthenticatedUser } from '../auth/types/jwt-payload.js';
+// `import type` is required: isolatedModules + emitDecoratorMetadata forbid a
+// value import for a type referenced in a decorated signature.
+import type { AuthenticatedUser } from '../auth/types/jwt-payload.js';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
 import { Role } from '../contracts/index.js';
 import { CreateIssueDto } from './dto/create-issue.dto.js';

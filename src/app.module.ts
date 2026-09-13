@@ -10,6 +10,7 @@ import { AppService } from './app.service.js';
 import { MongoExceptionFilter } from './common/filters/mongo-exception.filter.js';
 import { buildMongoUri } from './config/database.config.js';
 import { HelloModule } from './hello/hello.module.js';
+import { IssuesModule } from './issues/issues.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
@@ -29,6 +30,7 @@ import { UsersModule } from './users/users.module.js';
     HelloModule,
     UsersModule,
     AuthModule,
+    IssuesModule,
   ],
   controllers: [AppController],
   providers: [
