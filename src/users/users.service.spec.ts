@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
+import { Role } from '../contracts/index.js';
 import { Test, TestingModule } from '@nestjs/testing';
 import { User } from './schemas/user.schema.js';
 import { UsersService } from './users.service.js';
@@ -14,6 +15,7 @@ describe('UsersService', () => {
     create: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
     findById: ReturnType<typeof vi.fn>;
+    findOne: ReturnType<typeof vi.fn>;
     findByIdAndUpdate: ReturnType<typeof vi.fn>;
     findByIdAndDelete: ReturnType<typeof vi.fn>;
   };
@@ -23,6 +25,7 @@ describe('UsersService', () => {
       create: vi.fn(),
       find: vi.fn(),
       findById: vi.fn(),
+      findOne: vi.fn(),
       findByIdAndUpdate: vi.fn(),
       findByIdAndDelete: vi.fn(),
     };
@@ -76,6 +79,33 @@ describe('UsersService', () => {
 
     await expect(service.remove('missing')).rejects.toBeInstanceOf(
       NotFoundException,
+    );
+  });
+
+  it('finds a user by email with the password hash', async () => {
+    const select = vi
+      .fn()
+      .mockReturnValue(execOf({ email: 'ada@example.com' }));
+    model.findOne.mockReturnValue({ select });
+
+    await expect(
+      service.findByEmailWithPassword('ADA@example.com'),
+    ).resolves.toMatchObject({ email: 'ada@example.com' });
+
+    // Lower-cased to match the schema's `lowercase: true` normalisation.
+    expect(model.findOne).toHaveBeenCalledWith({ email: 'ada@example.com' });
+    expect(select).toHaveBeenCalledWith('+passwordHash');
+  });
+
+  it('applies role implications when setting roles', async () => {
+    model.findByIdAndUpdate.mockReturnValue(execOf({ roles: [] }));
+
+    await service.setRoles('507f1f77bcf86cd799439011', [Role.VOLUNTEER]);
+
+    expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
+      '507f1f77bcf86cd799439011',
+      { roles: [Role.VOLUNTEER, Role.CITIZEN] },
+      { returnDocument: 'after', runValidators: true },
     );
   });
 });

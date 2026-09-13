@@ -2,6 +2,7 @@ import { Module, ValidationPipe } from '@nestjs/common';
 import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { AuthModule } from './auth/auth.module.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { MongoExceptionFilter } from './common/filters/mongo-exception.filter.js';
@@ -25,6 +26,7 @@ import { UsersModule } from './users/users.module.js';
     }),
     HelloModule,
     UsersModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [

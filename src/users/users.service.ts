@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
+import { applyRoleImplications, Role } from '../contracts/index.js';
 import { Model } from 'mongoose';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
@@ -36,6 +37,44 @@ export class UsersService {
         returnDocument: 'after',
         runValidators: true,
       })
+      .exec();
+    if (!user) {
+      throw new NotFoundException(`User with id "${id}" not found`);
+    }
+    return user;
+  }
+
+  /**
+   * The ONLY place in the codebase that selects the password hash. Keep it that
+   * way — `select: false` on the schema is what makes every other query safe.
+   */
+  findByEmailWithPassword(email: string): Promise<UserDocument | null> {
+    return this.userModel
+      .findOne({ email: email.toLowerCase() })
+      .select('+passwordHash')
+      .exec();
+  }
+
+  createWithPassword(input: {
+    name: string;
+    email: string;
+    passwordHash: string;
+    roles: Role[];
+  }): Promise<UserDocument> {
+    return this.userModel.create(input);
+  }
+
+  /**
+   * Replace semantics: the supplied array becomes the user's roles, so this
+   * both grants and revokes. Role implications are applied on the way in.
+   */
+  async setRoles(id: string, roles: Role[]): Promise<UserDocument> {
+    const user = await this.userModel
+      .findByIdAndUpdate(
+        id,
+        { roles: applyRoleImplications(roles) },
+        { returnDocument: 'after', runValidators: true },
+      )
       .exec();
     if (!user) {
       throw new NotFoundException(`User with id "${id}" not found`);
