@@ -41,6 +41,9 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.e2e-spec.ts'],
+    // These specs share one database and truncate collections between tests,
+    // so they must not run concurrently.
+    fileParallelism: false,
     env: testEnv(),
   },
 });

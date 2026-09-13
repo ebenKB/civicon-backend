@@ -67,6 +67,19 @@ $ npm run seed -- --fresh
 
 Sample records live in [`src/seed.ts`](src/seed.ts).
 
+### Demo accounts
+
+`npm run seed` creates one account per actor. They all share the password
+`Password123!`.
+
+| Email | Roles |
+| --- | --- |
+| `citizen@civicon.test` | `CITIZEN` |
+| `volunteer@civicon.test` | `CITIZEN`, `VOLUNTEER` |
+| `agency@civicon.test` | `AGENCY` |
+| `sponsor@civicon.test` | `SPONSOR` |
+| `admin@civicon.test` | `ADMIN` |
+
 ### Connection config
 
 The `MONGO_*` variables in `.env` are the single source of truth: docker-compose
@@ -76,6 +89,54 @@ Change a password or port once and both sides stay in sync.
 
 For hosted deployments where the provider issues a connection string as a whole
 (Atlas, replica sets), set `MONGODB_URI` — it overrides the parts.
+
+## Authentication
+
+Every route requires a bearer token unless it is marked `@Public()`. The public
+routes are `GET /`, `GET /hello`, `POST /auth/register` and `POST /auth/login`;
+everything else returns 401 without a valid token, and 403 when the caller
+lacks the role a route requires.
+
+```bash
+# sign up — only CITIZEN and VOLUNTEER may be self-assigned
+curl -X POST localhost:9000/auth/register \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Ada","email":"ada@example.com","password":"super-secret","roles":["VOLUNTEER"]}'
+
+# sign in
+curl -X POST localhost:9000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"ada@example.com","password":"super-secret"}'
+
+# who am I?
+curl localhost:9000/auth/me -H "Authorization: Bearer $TOKEN"
+```
+
+Both `register` and `login` return `{ token, user }`. The token's claims carry
+the user's roles, so guards need no database round-trip; `GET /auth/me` re-reads
+the database and is therefore authoritative when roles have changed since the
+token was issued.
+
+`AGENCY`, `SPONSOR` and `ADMIN` cannot be self-assigned — agencies are the
+authoritative owners of issues, so that authority is granted by the seed or by
+an admin through `PATCH /users/:id/roles`. Granting `VOLUNTEER` also grants
+`CITIZEN`: a volunteer is a citizen who also does the work.
+
+Account creation lives only at `POST /auth/register`. The `/users` routes are
+administration, restricted to `ADMIN`.
+
+`JWT_SECRET` has no default and the app refuses to start without it. Generate
+one with:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+```
+
+Because the app will not boot without it, any CI job running `npm run test:e2e`
+must supply `JWT_SECRET` in its environment — `.env` is gitignored.
+
+**Known gap:** there is no rate limiting on `POST /auth/login`. Adding
+`@nestjs/throttler` to that route is the next thing this module needs.
 
 ## Compile and run the project
 
