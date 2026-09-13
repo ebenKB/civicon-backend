@@ -29,7 +29,49 @@
 
 ```bash
 $ npm install
+$ cp .env.example .env
 ```
+
+## Database
+
+MongoDB runs in Docker, pinned to the **8.0** long-term-support line. (8.1+ are
+"rapid releases" — supported only until the next rapid release, so not suitable
+for production.)
+
+```bash
+# start MongoDB in the background
+$ docker compose up -d
+
+# check it is healthy
+$ docker compose ps
+
+# open a shell against the database
+$ docker compose exec mongodb mongosh -u root -p example --authenticationDatabase admin civicon
+
+# stop it (data survives in the mongodb_data volume)
+$ docker compose down
+
+# stop it and wipe the data
+$ docker compose down -v
+```
+
+### Seeding sample data
+
+```bash
+# upsert the sample users (safe to re-run)
+$ npm run seed
+
+# wipe the users collection first, then seed
+$ npm run seed -- --fresh
+```
+
+Sample records live in [`src/seed.ts`](src/seed.ts).
+
+The app reads `MONGODB_URI` from `.env`. It fails fast at boot if that variable
+is missing, rather than silently defaulting to localhost.
+
+`authSource=admin` in the URI is required: the root user provisioned by the
+container lives in the `admin` database, not in `civicon`.
 
 ## Compile and run the project
 
@@ -47,15 +89,23 @@ $ npm run start:prod
 ## Run tests
 
 ```bash
-# unit tests
+# unit tests — fully mocked, no database needed
 $ npm run test
 
-# e2e tests
+# e2e tests — REQUIRE a running MongoDB (docker compose up -d)
 $ npm run test:e2e
 
 # test coverage
 $ npm run test:cov
 ```
+
+The e2e suite talks to a real database and truncates collections between tests,
+so it runs against a **separate** database: `vitest.config.e2e.ts` derives
+`<MONGODB_URI database>_test` (e.g. `civicon_test`) and injects it as
+`MONGODB_URI`. Your development data is left alone.
+
+As a backstop, the suite refuses to start if the connected database name does
+not end in `_test`.
 
 ## Deployment
 
