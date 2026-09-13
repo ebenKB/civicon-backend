@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
 import { Public } from '../auth/decorators/public.decorator.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -9,6 +17,7 @@ import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
 import { Role } from '../contracts/index.js';
 import { CreateIssueDto } from './dto/create-issue.dto.js';
 import { ListIssuesQuery } from './dto/list-issues.query.js';
+import { UpdateIssueDto } from './dto/update-issue.dto.js';
 import { toPublicIssue } from './issue-response.js';
 import { IssuesService } from './issues.service.js';
 
@@ -40,5 +49,17 @@ export class IssuesController {
   @Get(':id')
   async findOne(@Param('id', ParseObjectIdPipe) id: string) {
     return toPublicIssue(await this.issuesService.findOne(id));
+  }
+  // Authenticated but no @Roles(): ownership is the requirement, and the
+  // service enforces it.
+  @Patch(':id')
+  async update(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() updateIssueDto: UpdateIssueDto,
+  ) {
+    return toPublicIssue(
+      await this.issuesService.updateOwn(id, user.id, updateIssueDto),
+    );
   }
 }

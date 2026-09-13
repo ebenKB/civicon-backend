@@ -1,8 +1,15 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, QueryFilter, Types } from 'mongoose';
+import { IssueStatus } from '../contracts/index.js';
 import { CreateIssueDto } from './dto/create-issue.dto.js';
 import { ListIssuesQuery } from './dto/list-issues.query.js';
+import { UpdateIssueDto } from './dto/update-issue.dto.js';
 import { Issue, IssueDocument } from './schemas/issue.schema.js';
 
 const DEFAULT_LIMIT = 20;
@@ -52,5 +59,31 @@ export class IssuesService {
       throw new NotFoundException(`Issue with id "${id}" not found`);
     }
     return issue;
+  }
+  /**
+   * Ownership, not role, is the requirement — an admin editing someone else's
+   * issue gets the same 403. Rewriting a citizen's account of what they saw is
+   * not an administrative power; REJECTED is the recorded alternative.
+   */
+  async updateOwn(
+    id: string,
+    actorId: string,
+    dto: UpdateIssueDto,
+  ): Promise<IssueDocument> {
+    const issue = await this.findOne(id);
+
+    if (issue.reportedBy.toString() !== actorId) {
+      throw new ForbiddenException('You can only edit issues you reported');
+    }
+
+    // An agency may already have acted on what it read.
+    if (issue.status !== IssueStatus.OPEN) {
+      throw new ConflictException(
+        `An issue can only be edited while OPEN; this one is ${issue.status}`,
+      );
+    }
+
+    Object.assign(issue, dto);
+    return issue.save();
   }
 }

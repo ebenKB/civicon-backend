@@ -34,6 +34,7 @@ describe('IssuesController', () => {
       create: vi.fn(),
       findAll: vi.fn(),
       findOne: vi.fn(),
+      updateOwn: vi.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -87,5 +88,18 @@ describe('IssuesController', () => {
     await controller.findOne('507f1f77bcf86cd799439011');
 
     expect(service.findOne).toHaveBeenCalledWith('507f1f77bcf86cd799439011');
+  });
+  it('passes the caller id to updateOwn so ownership can be checked', async () => {
+    service.updateOwn.mockResolvedValue(issueDoc());
+
+    await controller.update('507f1f77bcf86cd799439011', caller, {
+      title: 'Corrected',
+    });
+
+    expect(service.updateOwn).toHaveBeenCalledWith(
+      '507f1f77bcf86cd799439011',
+      reporterId.toString(),
+      { title: 'Corrected' },
+    );
   });
 });

@@ -1,4 +1,8 @@
-import { NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
@@ -139,6 +143,59 @@ describe('IssuesService', () => {
       await expect(service.findOne('missing')).rejects.toBeInstanceOf(
         NotFoundException,
       );
+    });
+  });
+  describe('updateOwn', () => {
+    const ownedIssue = () => ({
+      reportedBy: new Types.ObjectId(REPORTER),
+      status: IssueStatus.OPEN,
+      title: 'Blocked drain',
+      save: vi.fn().mockImplementation(function (this: unknown) {
+        return Promise.resolve(this);
+      }),
+    });
+
+    it('applies the changes when the caller is the reporter', async () => {
+      const issue = ownedIssue();
+      model.findById.mockReturnValue(execOf(issue));
+
+      const result = await service.updateOwn(REPORTER, REPORTER, {
+        title: 'Blocked drain on Market Street',
+      });
+
+      expect(result.title).toBe('Blocked drain on Market Street');
+      expect(issue.save).toHaveBeenCalled();
+    });
+
+    it('refuses a caller who is not the reporter', async () => {
+      model.findById.mockReturnValue(execOf(ownedIssue()));
+
+      await expect(
+        service.updateOwn(REPORTER, '507f1f77bcf86cd799439099', {
+          title: 'Hijacked',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('refuses once the issue has left OPEN', async () => {
+      const issue = ownedIssue();
+      issue.status = IssueStatus.REJECTED;
+      model.findById.mockReturnValue(execOf(issue));
+
+      await expect(
+        service.updateOwn(REPORTER, REPORTER, { title: 'Too late' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('never lets an update change the status', async () => {
+      const issue = ownedIssue();
+      model.findById.mockReturnValue(execOf(issue));
+
+      await service.updateOwn(REPORTER, REPORTER, {
+        title: 'Still open',
+      } as never);
+
+      expect(issue.status).toBe(IssueStatus.OPEN);
     });
   });
 });
