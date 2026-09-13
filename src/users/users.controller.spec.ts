@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Role } from '../contracts/index.js';
 import { UsersController } from './users.controller.js';
 import { UsersService } from './users.service.js';
 
@@ -8,10 +9,10 @@ describe('UsersController', () => {
 
   beforeEach(async () => {
     service = {
-      create: vi.fn(),
       findAll: vi.fn(),
       findOne: vi.fn(),
       update: vi.fn(),
+      setRoles: vi.fn(),
       remove: vi.fn(),
     };
 
@@ -27,12 +28,16 @@ describe('UsersController', () => {
     expect(controller).toBeDefined();
   });
 
-  it('delegates create to the service', async () => {
-    const dto = { name: 'Ada', email: 'ada@example.com' };
-    service.create.mockResolvedValue({ ...dto, id: '1' });
+  it('delegates a role grant to the service', async () => {
+    service.setRoles.mockResolvedValue({ roles: [Role.AGENCY] });
 
-    await expect(controller.create(dto)).resolves.toMatchObject(dto);
-    expect(service.create).toHaveBeenCalledWith(dto);
+    await controller.setRoles('507f1f77bcf86cd799439011', {
+      roles: [Role.AGENCY],
+    });
+
+    expect(service.setRoles).toHaveBeenCalledWith('507f1f77bcf86cd799439011', [
+      Role.AGENCY,
+    ]);
   });
 
   it('delegates findAll to the service', async () => {

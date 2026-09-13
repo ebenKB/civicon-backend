@@ -7,21 +7,20 @@ import {
   HttpStatus,
   Param,
   Patch,
-  Post,
 } from '@nestjs/common';
+import { Roles } from '../auth/decorators/roles.decorator.js';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
-import { CreateUserDto } from './dto/create-user.dto.js';
+import { Role } from '../contracts/index.js';
+import { SetRolesDto } from './dto/set-roles.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { UsersService } from './users.service.js';
 
+// User administration. Account creation lives at POST /auth/register — a second
+// path here would produce users with no password, unable to log in.
 @Controller('users')
+@Roles(Role.ADMIN)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
-
-  @Post()
-  create(@Body() createUserDto: CreateUserDto) {
-    return this.usersService.create(createUserDto);
-  }
 
   @Get()
   findAll() {
@@ -39,6 +38,16 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
   ) {
     return this.usersService.update(id, updateUserDto);
+  }
+
+  // Separate from PATCH :id on purpose: UpdateUserDto has no `roles`, so the
+  // general update route cannot be used to escalate privileges.
+  @Patch(':id/roles')
+  setRoles(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() setRolesDto: SetRolesDto,
+  ) {
+    return this.usersService.setRoles(id, setRolesDto.roles);
   }
 
   @Delete(':id')

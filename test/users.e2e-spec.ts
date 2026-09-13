@@ -5,20 +5,42 @@ import { Connection } from 'mongoose';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module.js';
+import { Role } from './../src/contracts/index.js';
 
 // Exercises the real MongoDB connection, so `docker compose up -d` must be
 // running. See README "Running tests".
 describe('UsersController (e2e)', () => {
   let app: INestApplication<App>;
   let connection: Connection;
+  let adminToken: string;
+  let citizenToken: string;
+  let citizenId: string;
+
+  const PASSWORD = 'super-secret';
+
+  const register = (email: string, roles?: Role[]) =>
+    request(app.getHttpServer())
+      .post('/auth/register')
+      .send({
+        name: 'Test User',
+        email,
+        password: PASSWORD,
+        ...(roles ? { roles } : {}),
+      });
+
+  const login = async (email: string): Promise<string> => {
+    const { body } = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email, password: PASSWORD })
+      .expect(200);
+    return body.token;
+  };
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
-    // The ValidationPipe and MongoExceptionFilter come from AppModule
-    // (APP_PIPE / APP_FILTER), so this app matches production exactly.
     app = moduleFixture.createNestApplication();
     await app.init();
 
@@ -32,85 +54,125 @@ describe('UsersController (e2e)', () => {
           `— expected a database ending in "_test".`,
       );
     }
-
-    await connection.collection('users').deleteMany({});
   });
 
-  afterEach(async () => {
+  beforeEach(async () => {
     await connection.collection('users').deleteMany({});
+
+    await register('admin@example.com').expect(201);
+    await connection
+      .collection('users')
+      .updateOne(
+        { email: 'admin@example.com' },
+        { $set: { roles: [Role.ADMIN] } },
+      );
+    adminToken = await login('admin@example.com');
+
+    const { body } = await register('citizen@example.com').expect(201);
+    citizenId = body.user.id;
+    citizenToken = await login('citizen@example.com');
   });
 
   afterAll(async () => {
+    await connection.collection('users').deleteMany({});
     await app.close();
   });
 
-  it('creates and reads back a user', async () => {
-    const created = await request(app.getHttpServer())
-      .post('/users')
-      .send({ name: 'Ada Lovelace', email: 'ada@example.com' })
-      .expect(201);
-
-    expect(created.body).toMatchObject({
-      name: 'Ada Lovelace',
-      email: 'ada@example.com',
-      isActive: true,
-    });
-    expect(created.body.id).toBeDefined();
-
-    const fetched = await request(app.getHttpServer())
-      .get(`/users/${created.body.id}`)
-      .expect(200);
-
-    expect(fetched.body.email).toBe('ada@example.com');
-  });
-
-  it('lists users', async () => {
+  it('no longer exposes POST /users', async () => {
     await request(app.getHttpServer())
       .post('/users')
-      .send({ name: 'Grace Hopper', email: 'grace@example.com' })
-      .expect(201);
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ name: 'Ada', email: 'ada@example.com' })
+      .expect(404);
+  });
 
-    const res = await request(app.getHttpServer()).get('/users').expect(200);
+  it('refuses an unauthenticated list', async () => {
+    await request(app.getHttpServer()).get('/users').expect(401);
+  });
 
-    expect(res.body).toHaveLength(1);
+  it('refuses a citizen', async () => {
+    await request(app.getHttpServer())
+      .get('/users')
+      .set('Authorization', `Bearer ${citizenToken}`)
+      .expect(403);
+  });
+
+  it('lists users for an admin', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/users')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(200);
+
+    expect(res.body).toHaveLength(2);
+    expect(JSON.stringify(res.body)).not.toContain('passwordHash');
   });
 
   it('updates a user', async () => {
-    const { body } = await request(app.getHttpServer())
-      .post('/users')
-      .send({ name: 'Alan', email: 'alan@example.com' })
-      .expect(201);
-
     const updated = await request(app.getHttpServer())
-      .patch(`/users/${body.id}`)
+      .patch(`/users/${citizenId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
       .send({ name: 'Alan Turing' })
       .expect(200);
 
     expect(updated.body.name).toBe('Alan Turing');
   });
 
+  it('refuses to let PATCH /users/:id escalate roles', async () => {
+    // `roles` is not on UpdateUserDto, and forbidNonWhitelisted rejects it.
+    await request(app.getHttpServer())
+      .patch(`/users/${citizenId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ roles: [Role.ADMIN] })
+      .expect(400);
+  });
+
+  it('grants AGENCY through the dedicated role endpoint', async () => {
+    const granted = await request(app.getHttpServer())
+      .patch(`/users/${citizenId}/roles`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ roles: [Role.AGENCY] })
+      .expect(200);
+
+    // Replace semantics: AGENCY implies nothing, so CITIZEN is gone.
+    expect(granted.body.roles).toEqual([Role.AGENCY]);
+  });
+
+  it('applies the VOLUNTEER implication on a role grant', async () => {
+    const granted = await request(app.getHttpServer())
+      .patch(`/users/${citizenId}/roles`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ roles: [Role.VOLUNTEER] })
+      .expect(200);
+
+    expect(granted.body.roles).toEqual([Role.VOLUNTEER, Role.CITIZEN]);
+  });
+
+  it('rejects an empty roles array', async () => {
+    await request(app.getHttpServer())
+      .patch(`/users/${citizenId}/roles`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ roles: [] })
+      .expect(400);
+  });
+
+  it('refuses a citizen the role-grant endpoint', async () => {
+    await request(app.getHttpServer())
+      .patch(`/users/${citizenId}/roles`)
+      .set('Authorization', `Bearer ${citizenToken}`)
+      .send({ roles: [Role.ADMIN] })
+      .expect(403);
+  });
+
   it('deletes a user', async () => {
-    const { body } = await request(app.getHttpServer())
-      .post('/users')
-      .send({ name: 'Temp', email: 'temp@example.com' })
-      .expect(201);
-
-    await request(app.getHttpServer()).delete(`/users/${body.id}`).expect(204);
-    await request(app.getHttpServer()).get(`/users/${body.id}`).expect(404);
-  });
-
-  it('rejects an invalid payload', async () => {
     await request(app.getHttpServer())
-      .post('/users')
-      .send({ name: 'No Email', email: 'not-an-email' })
-      .expect(400);
-  });
+      .delete(`/users/${citizenId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(204);
 
-  it('rejects unknown properties', async () => {
     await request(app.getHttpServer())
-      .post('/users')
-      .send({ name: 'X', email: 'x@example.com', role: 'admin' })
-      .expect(400);
+      .get(`/users/${citizenId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .expect(404);
   });
 
   // Regression: these used to escape as opaque 500s.
@@ -119,26 +181,17 @@ describe('UsersController (e2e)', () => {
     ['patch', '/users/not-an-object-id'],
     ['delete', '/users/not-an-object-id'],
   ])('returns 400, not 500, for a malformed id (%s)', async (method, url) => {
-    const res = await request(app.getHttpServer())[method](url).send({});
-    expect(res.status).toBe(400);
-  });
-
-  it('returns 409, not 500, on a duplicate email', async () => {
-    const payload = { name: 'Ada', email: 'ada@example.com' };
-
-    await request(app.getHttpServer()).post('/users').send(payload).expect(201);
-
     const res = await request(app.getHttpServer())
-      .post('/users')
-      .send({ ...payload, name: 'Ada Again' })
-      .expect(409);
-
-    expect(res.body.message).toMatch(/email/);
+      [method](url)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({});
+    expect(res.status).toBe(400);
   });
 
   it('returns 404 for a well-formed but unknown id', async () => {
     await request(app.getHttpServer())
       .get('/users/000000000000000000000000')
+      .set('Authorization', `Bearer ${adminToken}`)
       .expect(404);
   });
 });

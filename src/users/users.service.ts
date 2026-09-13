@@ -2,7 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { applyRoleImplications, Role } from '../contracts/index.js';
 import { Model } from 'mongoose';
-import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { User, UserDocument } from './schemas/user.schema.js';
 
@@ -11,10 +10,6 @@ export class UsersService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
-
-  create(createUserDto: CreateUserDto): Promise<UserDocument> {
-    return this.userModel.create(createUserDto);
-  }
 
   findAll(): Promise<UserDocument[]> {
     return this.userModel.find().exec();

@@ -44,12 +44,19 @@ describe('UsersService', () => {
     expect(service).toBeDefined();
   });
 
-  it('creates a user', async () => {
-    const dto = { name: 'Ada', email: 'ada@example.com' };
-    model.create.mockResolvedValue({ ...dto, _id: '1' });
+  it('creates a user with a password hash', async () => {
+    const input = {
+      name: 'Ada',
+      email: 'ada@example.com',
+      passwordHash: 'hashed',
+      roles: [Role.CITIZEN],
+    };
+    model.create.mockResolvedValue({ ...input, _id: '1' });
 
-    await expect(service.create(dto)).resolves.toMatchObject(dto);
-    expect(model.create).toHaveBeenCalledWith(dto);
+    await expect(service.createWithPassword(input)).resolves.toMatchObject(
+      input,
+    );
+    expect(model.create).toHaveBeenCalledWith(input);
   });
 
   it('lists users', async () => {
