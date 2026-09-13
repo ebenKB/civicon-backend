@@ -19,6 +19,7 @@
 - **New dependencies are limited to exactly:** `@nestjs/jwt`, `bcryptjs`, and `@types/bcryptjs` if needed. Do **not** add `passport`, `@nestjs/passport`, or `passport-jwt`.
 - **Vitest globals are on** (`describe`, `it`, `expect`, `vi` need no import). Unit specs live beside their source as `*.spec.ts`; e2e specs live in `test/` as `*.e2e-spec.ts`.
 - **e2e tests need a running database:** `docker compose up -d` first. The suite refuses to run unless the connected database name ends in `_test`.
+- **e2e tests also need `JWT_SECRET`.** `AuthModule` throws at boot without it, and the e2e suite builds the real `AppModule`. It is read from `.env`, which is gitignored — so any CI job running `npm run test:e2e` must supply `JWT_SECRET` in its environment. This is intended: see Task 3, Step 1.
 - **Bcrypt cost factor is 12.** Password max length is 72 bytes (bcrypt truncates beyond that).
 - **The single 401 message for every failed login is the exact string `Invalid credentials`** — unknown email, wrong password and inactive account must be indistinguishable.
 - **`VOLUNTEER` implies `CITIZEN`.** `AGENCY`, `SPONSOR` and `ADMIN` imply nothing.
@@ -239,10 +240,15 @@ An isolated service so the hashing algorithm can be swapped without touching aut
 
 ```bash
 npm install @nestjs/jwt bcryptjs
-npx tsc --noEmit 2>&1 | grep -i "bcryptjs" || echo "bcryptjs types OK"
 ```
 
-If that grep printed a "could not find a declaration file" error, run `npm install --save-dev @types/bcryptjs`. Recent `bcryptjs` bundles its own types, so this is usually unnecessary.
+Expected: `@nestjs/jwt@12.x` (its peer range covers `@nestjs/common` ^12) and
+`bcryptjs@3.x`.
+
+Do **not** install `@types/bcryptjs`. bcryptjs 3.x is native ESM, ships its own
+`index.d.ts`, and has a default export — so `import bcrypt from 'bcryptjs'` is
+correct and typed. The DefinitelyTyped package is a stub for the 2.x line and
+would conflict.
 
 - [ ] **Step 2: Write the failing test**
 
@@ -1874,6 +1880,7 @@ git commit -m "Restrict user administration to admins and add role grants"
 The end-to-end proof that the Definition of Done holds, plus the demo accounts and the docs that make them usable.
 
 **Files:**
+- Modify: `vitest.config.e2e.ts`
 - Create: `test/auth.e2e-spec.ts`
 - Modify: `src/seed.ts`
 - Modify: `README.md`
@@ -1882,7 +1889,28 @@ The end-to-end proof that the Definition of Done holds, plus the demo accounts a
 - Consumes: everything from Tasks 1–5.
 - Produces: five seeded demo accounts, one per role.
 
-- [ ] **Step 1: Write the failing auth e2e test**
+- [ ] **Step 1: Serialize the e2e suite**
+
+`auth.e2e-spec.ts` (next step) and `users.e2e-spec.ts` both truncate the `users`
+collection in the same `_test` database, and Vitest runs separate spec files in
+parallel by default. Without this they race, and the failures are intermittent —
+the worst kind to debug.
+
+In `vitest.config.e2e.ts`, add one line to the `test` block:
+
+```ts
+  test: {
+    globals: true,
+    root: './',
+    include: ['**/*.e2e-spec.ts'],
+    // These specs share one database and truncate collections between tests,
+    // so they must not run concurrently.
+    fileParallelism: false,
+    env: testEnv(),
+  },
+```
+
+- [ ] **Step 2: Write the failing auth e2e test**
 
 Create `test/auth.e2e-spec.ts`:
 
@@ -2089,12 +2117,12 @@ describe('AuthController (e2e)', () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails or passes**
+- [ ] **Step 3: Run test to verify it fails or passes**
 
 Run: `docker compose up -d && npm run test:e2e -- test/auth.e2e-spec.ts`
 Expected: PASS — Tasks 3 and 4 already implemented this behaviour; this suite is the proof. If anything fails, fix the implementation, not the test.
 
-- [ ] **Step 3: Rewrite the seed with roles and passwords**
+- [ ] **Step 4: Rewrite the seed with roles and passwords**
 
 Replace `src/seed.ts` with:
 
@@ -2191,7 +2219,7 @@ seed().catch((error) => {
 });
 ```
 
-- [ ] **Step 4: Run the seed and verify a seeded account can log in**
+- [ ] **Step 5: Run the seed and verify a seeded account can log in**
 
 ```bash
 npm run seed -- --fresh
@@ -2208,7 +2236,7 @@ curl -s -X POST localhost:9000/auth/login \
 
 Expected: a token and `"roles":["AGENCY"]`. Stop the dev server when done.
 
-- [ ] **Step 5: Document authentication in the README**
+- [ ] **Step 6: Document authentication in the README**
 
 Insert a new section after the existing "Seeding sample data" section:
 
@@ -2269,7 +2297,7 @@ node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 `@nestjs/throttler` to that route is the next thing this module needs.
 ````
 
-- [ ] **Step 6: Run everything**
+- [ ] **Step 7: Run everything**
 
 ```bash
 npm run format
@@ -2281,10 +2309,10 @@ npx tsc --noEmit
 
 Expected: all pass, no type errors.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-git add test/auth.e2e-spec.ts src/seed.ts README.md
+git add vitest.config.e2e.ts test/auth.e2e-spec.ts src/seed.ts README.md
 git commit -m "Add auth e2e coverage, role-aware seed and auth documentation"
 ```
 
