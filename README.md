@@ -182,6 +182,39 @@ $ npm run start:dev
 $ npm run start:prod
 ```
 
+## Issues
+
+A citizen reports a civic issue; anyone can read the record; an agency triages it.
+
+| Route | Access |
+|---|---|
+| `POST /issues` | `CITIZEN` |
+| `GET /issues` | public — filters `status`, `category`, `reportedBy`; paging `limit` (default 20, max 100), `offset` |
+| `GET /issues/:id` | public |
+| `PATCH /issues/:id` | the reporter, while the issue is `OPEN` |
+| `PATCH /issues/:id/status` | `AGENCY` or `ADMIN` |
+
+`reportedBy` comes from the token and `status` from the schema default, so a
+request body can dictate neither — both are rejected as unknown properties.
+
+Status changes happen in exactly one place, `IssueLifecycleService`. In this
+slice an `OPEN` issue may become `REJECTED` (a `reason` is required) or
+`DUPLICATE` (a `duplicateOf` id is required); every other transition returns
+409 naming both states. Claiming and resolution are a later slice, which is why
+`CLAIMED`, `IN_PROGRESS`, `RESOLVED` and `VERIFIED` exist in the enum but cannot
+yet be reached.
+
+```bash
+TOKEN=$(curl -s -X POST localhost:9000/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"citizen@civicon.test","password":"Password123!"}' \
+  | node -pe 'JSON.parse(require("fs").readFileSync(0,"utf8")).token')
+
+curl -s -X POST localhost:9000/issues -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Blocked drain","description":"Standing water.","category":"DRAINAGE","location":"Market Street"}'
+```
+
 ## Run tests
 
 ```bash
