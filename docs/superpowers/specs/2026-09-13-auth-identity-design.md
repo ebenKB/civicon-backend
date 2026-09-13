@@ -215,6 +215,23 @@ export class RegisterDto {
 A request for `AGENCY`, `SPONSOR` or `ADMIN` fails validation with a **400 before
 any service code runs**. Omitting `roles` defaults to `[CITIZEN]`.
 
+**`VOLUNTEER` implies `CITIZEN`.** `AuthService.register` normalizes the requested
+roles by always unioning in `CITIZEN`, so `['VOLUNTEER']` is stored as
+`['CITIZEN', 'VOLUNTEER']`. This is a normalization rather than a validation
+error: the request is honoured, not rejected.
+
+The rationale is that there is no coherent actor who can fix a problem but not
+report one, and the alternative produces a volunteer who receives a 403 from
+`POST /issues` in Phase 2 — an edge case that reads as a bug every time it is
+encountered. Keeping the roles separate buys nothing, because the anti-self-dealing
+rule that motivates the distinction is enforced at reward time (guide §5), by
+comparing `issue.reportedBy` with `contribution.volunteerId`, not by withholding
+a role.
+
+The same implication is enforced in `PATCH /users/:id/roles`: granting `VOLUNTEER`
+adds `CITIZEN` if absent. It does not apply to `AGENCY`, `SPONSOR` or `ADMIN`,
+which are orthogonal to citizenship — a seeded agency officer holds `AGENCY` alone.
+
 `MaxLength(72)`: bcrypt silently truncates input beyond 72 bytes, so a longer
 password would make trailing characters meaningless. Rejecting is honest.
 
@@ -299,8 +316,11 @@ Test-driven: each behaviour below gets a failing test before its implementation.
 - `PasswordService`: hash then compare succeeds; compare fails on a wrong
   password; two hashes of the same input differ (salting).
 - `AuthService.register`: hashes the password (never stores plaintext); defaults
-  roles to `[CITIZEN]`; honours `[CITIZEN, VOLUNTEER]`; returns a token plus a
-  sanitized user with no `passwordHash`.
+  roles to `[CITIZEN]`; honours `[CITIZEN, VOLUNTEER]`; normalizes `['VOLUNTEER']`
+  to `['CITIZEN', 'VOLUNTEER']` without erroring; returns a token plus a sanitized
+  user with no `passwordHash`.
+- `UsersService` role grant: granting `VOLUNTEER` implies `CITIZEN`; granting
+  `AGENCY` alone leaves `CITIZEN` off; an empty array is rejected.
 - `AuthService.validateCredentials`: unknown email, wrong password and inactive
   user all raise the same `UnauthorizedException` message.
 - `RolesGuard`: no metadata → allow; single matching role → allow; dual-role user
