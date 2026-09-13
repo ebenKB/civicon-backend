@@ -80,6 +80,14 @@ export class AuthService {
     return user;
   }
 
+  /**
+   * Re-reads from the database, so the roles returned are authoritative even if
+   * the bearer's token was issued before an admin changed them.
+   */
+  async me(userId: string): Promise<PublicUser> {
+    return toPublicUser(await this.usersService.findOne(userId));
+  }
+
   private async buildResponse(user: UserDocument): Promise<AuthResponse> {
     const payload: JwtPayload = {
       sub: user._id.toString(),

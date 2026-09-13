@@ -1,8 +1,10 @@
 import { Module, ValidationPipe } from '@nestjs/common';
-import { APP_FILTER, APP_PIPE } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_PIPE } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthModule } from './auth/auth.module.js';
+import { JwtAuthGuard } from './auth/guards/jwt-auth.guard.js';
+import { RolesGuard } from './auth/guards/roles.guard.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { MongoExceptionFilter } from './common/filters/mongo-exception.filter.js';
@@ -44,6 +46,16 @@ import { UsersModule } from './users/users.module.js';
     {
       provide: APP_FILTER,
       useClass: MongoExceptionFilter,
+    },
+    // Order matters: Nest runs global guards in registration order, so
+    // JwtAuthGuard populates request.user before RolesGuard reads it.
+    {
+      provide: APP_GUARD,
+      useClass: JwtAuthGuard,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: RolesGuard,
     },
   ],
 })
