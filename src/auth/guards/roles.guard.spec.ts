@@ -47,11 +47,11 @@ describe('RolesGuard', () => {
     expect(guard.canActivate(contextFor(userWith(Role.AGENCY)))).toBe(true);
   });
 
-  it('allows a dual-role caller matching one of two required roles', () => {
-    requireRoles([Role.AGENCY, Role.VOLUNTEER]);
+  it('allows a multi-role caller matching one of two required roles', () => {
+    requireRoles([Role.AGENCY, Role.SPONSOR]);
 
     expect(
-      guard.canActivate(contextFor(userWith(Role.CITIZEN, Role.VOLUNTEER))),
+      guard.canActivate(contextFor(userWith(Role.CITIZEN, Role.SPONSOR))),
     ).toBe(true);
   });
 

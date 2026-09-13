@@ -75,7 +75,7 @@ Sample records live in [`src/seed.ts`](src/seed.ts).
 | Email | Roles |
 | --- | --- |
 | `citizen@civicon.test` | `CITIZEN` |
-| `volunteer@civicon.test` | `CITIZEN`, `VOLUNTEER` |
+| `volunteer@civicon.test` | `CITIZEN` |
 | `agency@civicon.test` | `AGENCY` |
 | `sponsor@civicon.test` | `SPONSOR` |
 | `admin@civicon.test` | `ADMIN` |
@@ -98,10 +98,10 @@ everything else returns 401 without a valid token, and 403 when the caller
 lacks the role a route requires.
 
 ```bash
-# sign up — only CITIZEN and VOLUNTEER may be self-assigned
+# sign up — always creates a CITIZEN; there is no roles field to send
 curl -X POST localhost:9000/auth/register \
   -H 'Content-Type: application/json' \
-  -d '{"name":"Ada","email":"ada@example.com","password":"super-secret","roles":["VOLUNTEER"]}'
+  -d '{"name":"Ada","email":"ada@example.com","password":"super-secret"}'
 
 # sign in
 curl -X POST localhost:9000/auth/login \
@@ -117,10 +117,19 @@ the user's roles, so guards need no database round-trip; `GET /auth/me` re-reads
 the database and is therefore authoritative when roles have changed since the
 token was issued.
 
-`AGENCY`, `SPONSOR` and `ADMIN` cannot be self-assigned — agencies are the
-authoritative owners of issues, so that authority is granted by the seed or by
-an admin through `PATCH /users/:id/roles`. Granting `VOLUNTEER` also grants
-`CITIZEN`: a volunteer is a citizen who also does the work.
+The four roles are `CITIZEN`, `AGENCY`, `SPONSOR` and `ADMIN`. Registration
+always creates a `CITIZEN` and accepts no `roles` field at all, so the other
+three cannot be self-assigned — there is nothing to submit. They are granted by
+the seed or by an admin through `PATCH /users/:id/roles`.
+
+**There is deliberately no `VOLUNTEER` role**, diverging from §4.1 of the
+execution guide. Volunteering is an action a citizen takes, not an identity they
+hold: a claim is refused because of the *issue's* eligibility, lock and
+assignment state, and anti-self-dealing compares `reportedBy` against
+`volunteerId`. Neither reads a role, so a `VOLUNTEER` role would gate nothing.
+The full argument, and what to build instead when `RESTRICTED` eligibility
+arrives, is in
+[the design spec](docs/superpowers/specs/2026-09-13-auth-identity-design.md#divergence-from-guide-41-no-volunteer-role).
 
 Account creation lives only at `POST /auth/register`. The `/users` routes are
 administration, restricted to `ADMIN`.

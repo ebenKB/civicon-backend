@@ -66,7 +66,7 @@ describe('AuthService', () => {
       expect(JSON.stringify(input)).not.toContain('super-secret');
     });
 
-    it('defaults roles to CITIZEN', async () => {
+    it('always assigns CITIZEN, never a privileged role', async () => {
       passwordService.hash.mockResolvedValue('hashed');
       usersService.createWithPassword.mockResolvedValue(userDoc());
 
@@ -78,23 +78,6 @@ describe('AuthService', () => {
 
       const [input] = usersService.createWithPassword.mock.calls[0];
       expect(input.roles).toEqual([Role.CITIZEN]);
-    });
-
-    it('normalizes a VOLUNTEER-only request to include CITIZEN', async () => {
-      passwordService.hash.mockResolvedValue('hashed');
-      usersService.createWithPassword.mockResolvedValue(
-        userDoc({ roles: [Role.VOLUNTEER, Role.CITIZEN] }),
-      );
-
-      await service.register({
-        name: 'Ada Lovelace',
-        email: 'ada@example.com',
-        password: 'super-secret',
-        roles: [Role.VOLUNTEER],
-      });
-
-      const [input] = usersService.createWithPassword.mock.calls[0];
-      expect(input.roles).toEqual([Role.VOLUNTEER, Role.CITIZEN]);
     });
 
     it('returns a token plus a sanitized user', async () => {
@@ -121,21 +104,22 @@ describe('AuthService', () => {
 
     it('signs the roles into the token claims', async () => {
       passwordService.hash.mockResolvedValue('hashed');
+      // An account an admin has since promoted: whatever roles the stored
+      // document carries are what the token must assert.
       usersService.createWithPassword.mockResolvedValue(
-        userDoc({ roles: [Role.CITIZEN, Role.VOLUNTEER] }),
+        userDoc({ roles: [Role.AGENCY] }),
       );
 
       const { token } = await service.register({
         name: 'Ada Lovelace',
         email: 'ada@example.com',
         password: 'super-secret',
-        roles: [Role.VOLUNTEER],
       });
 
       const claims = new JwtService({ secret: 'test' }).verify(token);
       expect(claims.sub).toBe('507f1f77bcf86cd799439011');
       expect(claims.email).toBe('ada@example.com');
-      expect(claims.roles).toEqual([Role.CITIZEN, Role.VOLUNTEER]);
+      expect(claims.roles).toEqual([Role.AGENCY]);
     });
   });
 

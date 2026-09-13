@@ -46,12 +46,11 @@ describe('AuthController (e2e)', () => {
         name: 'Ada Lovelace',
         email: 'ada@example.com',
         password: PASSWORD,
-        roles: [Role.VOLUNTEER],
       })
       .expect(201);
 
     expect(registered.body.token).toEqual(expect.any(String));
-    expect(registered.body.user.roles).toEqual([Role.VOLUNTEER, Role.CITIZEN]);
+    expect(registered.body.user.roles).toEqual([Role.CITIZEN]);
 
     const loggedIn = await request(app.getHttpServer())
       .post('/auth/login')
@@ -65,7 +64,7 @@ describe('AuthController (e2e)', () => {
 
     expect(me.body).toMatchObject({
       email: 'ada@example.com',
-      roles: [Role.VOLUNTEER, Role.CITIZEN],
+      roles: [Role.CITIZEN],
       civicPointsCached: 0,
       reputation: 100,
     });
@@ -93,6 +92,9 @@ describe('AuthController (e2e)', () => {
     expect(me.body.roles).toEqual([Role.AGENCY]);
   });
 
+  // RegisterDto has no `roles` field at all, so these are rejected as an
+  // unknown property by the global forbidNonWhitelisted pipe — a 400 because
+  // there is nothing to submit, not because a validator turned it down.
   it.each([Role.AGENCY, Role.SPONSOR, Role.ADMIN])(
     'refuses to let a registrant grant themselves %s',
     async (role) => {
@@ -131,6 +133,21 @@ describe('AuthController (e2e)', () => {
       .expect(409);
 
     expect(res.body.message).toMatch(/email/);
+  });
+
+  it('rejects any roles field outright', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({
+        name: 'Ada',
+        email: 'ada@example.com',
+        password: PASSWORD,
+        roles: [Role.CITIZEN],
+      })
+      .expect(400);
+
+    // Even the role it would have been given anyway: the field does not exist.
+    expect(JSON.stringify(res.body.message)).toMatch(/roles/);
   });
 
   it('rejects a password shorter than 8 characters', async () => {

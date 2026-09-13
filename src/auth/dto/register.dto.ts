@@ -1,16 +1,21 @@
 import {
-  ArrayNotEmpty,
-  IsArray,
   IsEmail,
-  IsIn,
   IsNotEmpty,
-  IsOptional,
   IsString,
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { PUBLIC_ROLES, Role } from '../../contracts/index.js';
 
+/**
+ * Three fields, and deliberately no `roles`. Registration always creates a
+ * CITIZEN.
+ *
+ * This is the structural form of the self-assignment gate: AGENCY, SPONSOR and
+ * ADMIN cannot be requested because there is nothing to request them with. A
+ * payload carrying `roles` is rejected as an unknown property by the global
+ * forbidNonWhitelisted pipe — a 400 because the field does not exist, rather
+ * than because a validator turned it down. There is no gate to get wrong.
+ */
 export class RegisterDto {
   @IsString()
   @IsNotEmpty()
@@ -25,12 +30,4 @@ export class RegisterDto {
   @MinLength(8)
   @MaxLength(72)
   password: string;
-
-  // Requesting AGENCY, SPONSOR or ADMIN fails here, before any service code
-  // runs. Those roles come from the seed or from an admin grant.
-  @IsOptional()
-  @IsArray()
-  @ArrayNotEmpty()
-  @IsIn(PUBLIC_ROLES, { each: true })
-  roles?: Role[];
 }

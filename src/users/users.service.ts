@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { applyRoleImplications, Role } from '../contracts/index.js';
+import { Role } from '../contracts/index.js';
 import { Model } from 'mongoose';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { User, UserDocument } from './schemas/user.schema.js';
@@ -61,13 +61,13 @@ export class UsersService {
 
   /**
    * Replace semantics: the supplied array becomes the user's roles, so this
-   * both grants and revokes. Role implications are applied on the way in.
+   * both grants and revokes.
    */
   async setRoles(id: string, roles: Role[]): Promise<UserDocument> {
     const user = await this.userModel
       .findByIdAndUpdate(
         id,
-        { roles: applyRoleImplications(roles) },
+        { roles },
         { returnDocument: 'after', runValidators: true },
       )
       .exec();

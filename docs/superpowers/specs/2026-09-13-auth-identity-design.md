@@ -11,8 +11,8 @@ dealing with, and every later phase can enforce that server-side rather than by
 hiding UI.
 
 This is the authentication and authorization backbone that Phases 2–6 depend on:
-`@Roles(Role.AGENCY)` on an assign endpoint, `@Roles(Role.VOLUNTEER)` on a claim
-endpoint, and `req.user.id` as the actor recorded in `issues.timeline[]`.
+`@Roles(Role.AGENCY)` on an assign endpoint, `@Roles(Role.ADMIN)` on a review
+queue, and `req.user.id` as the actor recorded in `issues.timeline[]`.
 
 ## Non-goals
 
@@ -52,7 +52,8 @@ Established conventions this design follows: global `ValidationPipe`
 | Decision | Choice | Rationale |
 |---|---|---|
 | Scope | Auth only | Smallest slice that unblocks every later phase. |
-| Role granting | Public self-serve for `CITIZEN`/`VOLUNTEER`; `AGENCY`/`SPONSOR`/`ADMIN` seeded or admin-granted | Guide §8 claims "agencies remain authoritative owners". Self-assignable `AGENCY` would make that claim false. |
+| Roles | `CITIZEN`, `AGENCY`, `SPONSOR`, `ADMIN` — **no `VOLUNTEER`** (diverges from guide §4.1, see below) | A role that gates nothing is a UI state, not a role. |
+| Role granting | Registration always creates a `CITIZEN` and accepts no `roles` field at all; `AGENCY`/`SPONSOR`/`ADMIN` are seeded or admin-granted | Guide §8 claims "agencies remain authoritative owners". Self-assignable `AGENCY` would make that claim false. With no field to submit, the gate is structural rather than validated. |
 | Tokens | Single access JWT + `GET /auth/me` | Matches guide §4.4 exactly. No refresh machinery to design, store, or rotate. |
 | Existing `/users` CRUD | `POST` dropped, remainder `ADMIN`-only | Registration becomes the single account-creation path; keeps an admin surface without a second password-less signup. |
 | Guard wiring | Global `APP_GUARD`, `@Public()` opt-out | Default-deny. A route added in Phase 3 that forgets `@UseGuards` is still protected. |
@@ -61,28 +62,58 @@ Established conventions this design follows: global `ValidationPipe`
 
 ## 1. Contracts
 
-New `src/contracts/` with a barrel `index.ts`, starting with `role.enum.ts`:
+New `src/contracts/` with a barrel `index.ts`, starting with `role.ts`:
 
 ```ts
 export enum Role {
   CITIZEN = 'CITIZEN',
-  VOLUNTEER = 'VOLUNTEER',
   AGENCY = 'AGENCY',
   SPONSOR = 'SPONSOR',
   ADMIN = 'ADMIN',
 }
-
-/** Roles a user may grant themselves at registration. */
-export const PUBLIC_ROLES = [Role.CITIZEN, Role.VOLUNTEER] as const;
 ```
 
-Verbatim from guide §4.1. Later phases add their enums, types and the issue
-state-machine transition map to this folder.
+Later phases add their enums, types and the issue state-machine transition map
+to this folder.
 
 There is no web app in this repository, so `/packages/contracts` cannot exist
 yet. Guide rule #2 — "never redefine a shape locally, import it from the shared
 contracts package" — still applies, and a folder that later moves wholesale into
 a workspace package costs nothing now.
+
+### Divergence from guide §4.1: no `VOLUNTEER` role
+
+The guide lists five roles and notes that a user may hold both `CITIZEN` and
+`VOLUNTEER`. This implementation has four. **Volunteering is an action a citizen
+takes, not an identity they hold.**
+
+The reason is that `VOLUNTEER` gates nothing. Per the guide's own state machine,
+a claim is refused when the issue is `GOVERNMENT_ONLY`, locked, `ASSIGNED`, or
+already claimed — every one of those a property of *the issue*, not of the
+actor. Anti-self-dealing (guide §5) compares `issue.reportedBy` against
+`contribution.volunteerId`: identity, not role. So `@Roles(Role.VOLUNTEER)` on
+the claim endpoint would exclude exactly one person — a citizen who had not
+ticked a box — and excluding them buys no safety.
+
+Since every volunteer is necessarily a citizen, the role never partitioned the
+user base; it was a flag on some citizens that no authorization decision read.
+
+Consequences, all of them simplifications:
+
+- Registration accepts no `roles` field. There is no self-assignment gate to
+  validate, because there is nothing to submit. An attempt to send `roles` is
+  rejected as an unknown property by the global `forbidNonWhitelisted` pipe.
+- No role-implication normalization is needed anywhere.
+- `contributions.volunteerId` is unaffected. As a field name it denotes *the
+  citizen who did this work* — a relationship, not a role.
+
+**When this decision should be revisited:** the guide's `RESTRICTED`
+eligibility tier implies vetted or trained volunteers. That is a credential and
+wants to be per-category (`trainedFor: [IssueCategory]`) or a verification
+level — a boolean role cannot express it. An explicit safety-terms opt-in is
+likewise a timestamp worth auditing (`volunteerAgreementAcceptedAt`), not a
+role. Build either when `RESTRICTED` actually ships; neither resurrects
+`VOLUNTEER`.
 
 ## 2. User schema
 
@@ -116,7 +147,7 @@ users, which have no `passwordHash`. The seed rewrite (§8) gives them hashes;
 ```
 src/contracts/
   index.ts
-  role.enum.ts
+  role.ts
 
 src/auth/
   auth.module.ts
@@ -156,15 +187,17 @@ round-trip per request.
     "id": "…",
     "name": "Ada Lovelace",
     "email": "ada@example.com",
-    "roles": ["CITIZEN", "VOLUNTEER"],
+    "roles": ["CITIZEN"],
     "civicPointsCached": 0,
     "reputation": 100
   }
 }
 ```
 
-The frontend selects its citizen / volunteer / agency / sponsor shell from
-`user.roles`. The server never trusts that choice.
+The frontend selects its citizen / agency / sponsor shell from `user.roles`.
+The server never trusts that choice. A citizen's reporting and volunteering
+views are two faces of the same shell, gated by what each issue allows rather
+than by who the viewer is.
 
 **`GET /auth/me`** — re-reads the user from Mongo and returns the same sanitized
 shape, so it reflects *authoritative current* roles. This is the escape hatch for
@@ -173,8 +206,8 @@ rather than forcing a re-login.
 
 **`RolesGuard`** performs enforcement: it reads `@Roles(...)` metadata via
 `Reflector` (handler then class) and requires a non-empty intersection with
-`req.user.roles`. A user holding both `CITIZEN` and `VOLUNTEER` passes a guard
-requiring either — guide §4.1 explicitly requires dual-role users to work.
+`req.user.roles`. Holding any one of several required roles is enough, so a
+route may name two and accept either.
 
 A route with no `@Roles()` metadata requires authentication but no particular
 role.
@@ -198,45 +231,32 @@ server-side enforcement of role permissions. With global guards, a Phase 3 route
 that forgets `@UseGuards` fails closed with a 401 instead of silently shipping an
 open endpoint.
 
-## 6. Registration and the role gate
+## 6. Registration
 
 ```ts
 export class RegisterDto {
   @IsString() @IsNotEmpty() name: string;
   @IsEmail() email: string;
   @IsString() @MinLength(8) @MaxLength(72) password: string;
-
-  @IsOptional() @IsArray() @ArrayNotEmpty()
-  @IsIn(PUBLIC_ROLES, { each: true })
-  roles?: Role[];
 }
 ```
 
-A request for `AGENCY`, `SPONSOR` or `ADMIN` fails validation with a **400 before
-any service code runs**. Omitting `roles` defaults to `[CITIZEN]`.
+Three fields. **No `roles`.** Registration always creates a `CITIZEN`, which the
+schema supplies as the default.
 
-**`VOLUNTEER` implies `CITIZEN`.** `AuthService.register` normalizes the requested
-roles by always unioning in `CITIZEN`, so `['VOLUNTEER']` is stored as
-`['CITIZEN', 'VOLUNTEER']`. This is a normalization rather than a validation
-error: the request is honoured, not rejected.
-
-The rationale is that there is no coherent actor who can fix a problem but not
-report one, and the alternative produces a volunteer who receives a 403 from
-`POST /issues` in Phase 2 — an edge case that reads as a bug every time it is
-encountered. Keeping the roles separate buys nothing, because the anti-self-dealing
-rule that motivates the distinction is enforced at reward time (guide §5), by
-comparing `issue.reportedBy` with `contribution.volunteerId`, not by withholding
-a role.
-
-The same implication is enforced in `PATCH /users/:id/roles`: granting `VOLUNTEER`
-adds `CITIZEN` if absent. It does not apply to `AGENCY`, `SPONSOR` or `ADMIN`,
-which are orthogonal to citizenship — a seeded agency officer holds `AGENCY` alone.
+This is the structural form of the self-assignment gate. An earlier draft
+accepted an optional `roles` array and validated it against a whitelist; with
+`VOLUNTEER` gone there is nothing legitimate left to put there, so the field is
+removed outright. A request carrying `roles` is now rejected as an **unknown
+property** by the global `forbidNonWhitelisted` pipe — still a 400, but because
+the field does not exist rather than because a validator turned it down. There
+is no gate to get wrong.
 
 `MaxLength(72)`: bcrypt silently truncates input beyond 72 bytes, so a longer
 password would make trailing characters meaningless. Rejecting is honest.
 
-Privileged accounts are created two ways: the seed script, or
-`PATCH /users/:id/roles` (`ADMIN`-only), which accepts the full `Role` enum.
+`AGENCY`, `SPONSOR` and `ADMIN` accounts are created two ways: the seed script,
+or `PATCH /users/:id/roles` (`ADMIN`-only), which accepts the full `Role` enum.
 
 **Login responses are uniform.** Unknown email, wrong password, and inactive
 account all return `401 Unauthorized` with the identical message
@@ -279,13 +299,18 @@ JWT_EXPIRES_IN=7d
 `JwtModule.registerAsync` reads both from `ConfigService` and **throws at boot**
 if `JWT_SECRET` is empty or absent.
 
-The seed script grows one account per role, all sharing a documented demo
-password, and gives the five existing sample users hashes:
+The seed script grows an account per role, all sharing a documented demo
+password, and gives the existing sample users hashes.
+
+There are deliberately **two** citizen accounts. `volunteer@civicon.test` holds
+no special role — the name describes what that person does, not what they are —
+and exists so the anti-self-dealing rule has two distinct actors to demonstrate:
+one citizen reports an issue, a different citizen acts on it.
 
 | Email | Roles |
 |---|---|
 | `citizen@civicon.test` | `CITIZEN` |
-| `volunteer@civicon.test` | `CITIZEN`, `VOLUNTEER` |
+| `volunteer@civicon.test` | `CITIZEN` |
 | `agency@civicon.test` | `AGENCY` |
 | `sponsor@civicon.test` | `SPONSOR` |
 | `admin@civicon.test` | `ADMIN` |
@@ -315,12 +340,11 @@ Test-driven: each behaviour below gets a failing test before its implementation.
 
 - `PasswordService`: hash then compare succeeds; compare fails on a wrong
   password; two hashes of the same input differ (salting).
-- `AuthService.register`: hashes the password (never stores plaintext); defaults
-  roles to `[CITIZEN]`; honours `[CITIZEN, VOLUNTEER]`; normalizes `['VOLUNTEER']`
-  to `['CITIZEN', 'VOLUNTEER']` without erroring; returns a token plus a sanitized
-  user with no `passwordHash`.
-- `UsersService` role grant: granting `VOLUNTEER` implies `CITIZEN`; granting
-  `AGENCY` alone leaves `CITIZEN` off; an empty array is rejected.
+- `AuthService.register`: hashes the password (never stores plaintext); always
+  assigns `[CITIZEN]`; returns a token plus a sanitized user with no
+  `passwordHash`.
+- `UsersService.setRoles`: replaces rather than merges; an empty array is
+  rejected.
 - `AuthService.validateCredentials`: unknown email, wrong password and inactive
   user all raise the same `UnauthorizedException` message.
 - `RolesGuard`: no metadata → allow; single matching role → allow; dual-role user
@@ -332,7 +356,8 @@ Test-driven: each behaviour below gets a failing test before its implementation.
 **E2E** (`test/auth.e2e-spec.ts`)
 
 - register → login → `GET /auth/me` returns the expected `roles`.
-- register with `roles: ['ADMIN']` → 400; the user is not created.
+- register with `roles: ['ADMIN']` → 400 (unknown property); the user is not
+  created. The same holds for `AGENCY` and `SPONSOR`.
 - register with a duplicate email → 409.
 - `GET /auth/me` with no token → 401.
 - A `CITIZEN` token against `GET /users` → 403.

@@ -34,7 +34,7 @@ describe('JwtAuthGuard', () => {
     const token = jwtService.sign({
       sub: '507f1f77bcf86cd799439011',
       email: 'ada@example.com',
-      roles: [Role.CITIZEN, Role.VOLUNTEER],
+      roles: [Role.CITIZEN, Role.AGENCY],
     });
     const request = bearer(token) as Partial<RequestWithUser>;
 
@@ -42,7 +42,7 @@ describe('JwtAuthGuard', () => {
     expect(request.user).toEqual({
       id: '507f1f77bcf86cd799439011',
       email: 'ada@example.com',
-      roles: [Role.CITIZEN, Role.VOLUNTEER],
+      roles: [Role.CITIZEN, Role.AGENCY],
     });
   });
 

@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { applyRoleImplications, Role } from '../contracts/index.js';
+import { Role } from '../contracts/index.js';
 import { UserDocument } from '../users/schemas/user.schema.js';
 import { PublicUser, toPublicUser } from '../users/user-response.js';
 import { UsersService } from '../users/users.service.js';
@@ -36,7 +36,9 @@ export class AuthService {
       name: dto.name,
       email: dto.email,
       passwordHash,
-      roles: applyRoleImplications(dto.roles ?? [Role.CITIZEN]),
+      // Registration creates citizens, full stop. AGENCY, SPONSOR and ADMIN
+      // come from the seed or an admin grant.
+      roles: [Role.CITIZEN],
     });
 
     return this.buildResponse(user);

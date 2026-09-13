@@ -27,8 +27,8 @@ export class RolesGuard implements CanActivate {
       return false;
     }
 
-    // Holding ANY of the required roles is enough — a user may hold both
-    // CITIZEN and VOLUNTEER, and either should satisfy a guard naming one.
+    // Holding ANY of the required roles is enough, so a route may name several
+    // and accept a caller carrying one of them.
     return required.some((role) => user.roles.includes(role));
   }
 }

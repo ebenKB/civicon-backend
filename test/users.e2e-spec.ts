@@ -133,18 +133,26 @@ describe('UsersController (e2e)', () => {
       .send({ roles: [Role.AGENCY] })
       .expect(200);
 
-    // Replace semantics: AGENCY implies nothing, so CITIZEN is gone.
+    // Replace semantics, so the CITIZEN the account registered with is gone.
     expect(granted.body.roles).toEqual([Role.AGENCY]);
   });
 
-  it('applies the VOLUNTEER implication on a role grant', async () => {
+  it('grants several roles at once', async () => {
     const granted = await request(app.getHttpServer())
       .patch(`/users/${citizenId}/roles`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ roles: [Role.VOLUNTEER] })
+      .send({ roles: [Role.CITIZEN, Role.AGENCY] })
       .expect(200);
 
-    expect(granted.body.roles).toEqual([Role.VOLUNTEER, Role.CITIZEN]);
+    expect(granted.body.roles).toEqual([Role.CITIZEN, Role.AGENCY]);
+  });
+
+  it('rejects a role outside the enum', async () => {
+    await request(app.getHttpServer())
+      .patch(`/users/${citizenId}/roles`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ roles: ['VOLUNTEER'] })
+      .expect(400);
   });
 
   it('rejects an empty roles array', async () => {

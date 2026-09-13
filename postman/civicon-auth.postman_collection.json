@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Civicon \u2014 Auth & Identity",
-    "description": "Authentication and role-aware identity for the Civicon backend.\n\n## Before you run this\n\n```bash\ndocker compose up -d   # MongoDB\nnpm run seed           # demo accounts, one per role\nnpm run start          # http://localhost:9000\n```\n\n## How it works\n\nEvery route requires a bearer token unless marked `@Public()`. Both `register` and `login` return `{ token, user }`; the token's claims carry the user's roles, so guards need no database round-trip, while `GET /auth/me` re-reads the database and is authoritative when roles have changed since the token was issued.\n\nCollection-level auth is `Bearer {{token}}`, and the sign-in requests populate that variable through their test scripts \u2014 so run a login first and everything else just works.\n\n## Folders\n\n- **Public** \u2014 the only routes reachable without a token\n- **Auth** \u2014 sign-up, sign-in, and who-am-I\n- **Users (admin only)** \u2014 administration; self-contained and safe to run end-to-end\n- **Guardrails** \u2014 the security properties, each asserting its status code. Run this folder as a regression suite.\n\nRoles: `CITIZEN`, `VOLUNTEER`, `AGENCY`, `SPONSOR`, `ADMIN`. Only the first two are self-serve.",
+    "description": "Authentication and role-aware identity for the Civicon backend.\n\n## Before you run this\n\n```bash\ndocker compose up -d   # MongoDB\nnpm run seed           # demo accounts, one per role\nnpm run start          # http://localhost:9000\n```\n\n## How it works\n\nEvery route requires a bearer token unless marked `@Public()`. Both `register` and `login` return `{ token, user }`; the token's claims carry the user's roles, so guards need no database round-trip, while `GET /auth/me` re-reads the database and is authoritative when roles have changed since the token was issued.\n\nCollection-level auth is `Bearer {{token}}`, and the sign-in requests populate that variable through their test scripts \u2014 so run a login first and everything else just works.\n\n## Folders\n\n- **Public** \u2014 the only routes reachable without a token\n- **Auth** \u2014 sign-up, sign-in, and who-am-I\n- **Users (admin only)** \u2014 administration; self-contained and safe to run end-to-end\n- **Guardrails** \u2014 the security properties, each asserting its status code. Run this folder as a regression suite.\n\nRoles: `CITIZEN`, `AGENCY`, `SPONSOR`, `ADMIN`. Registration always creates a CITIZEN and accepts no `roles` field; the other three come from the seed or an admin grant.\n\nThere is deliberately no VOLUNTEER role \u2014 volunteering is an action a citizen takes, gated by each issue's eligibility and lock state rather than by who the caller is.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -149,7 +149,7 @@
                 "register"
               ]
             },
-            "description": "Omitting `roles` defaults to [CITIZEN].\n\nThe email carries a random suffix so the collection can be re-run: the seed already owns the fixed addresses, and a duplicate returns 409.",
+            "description": "Registration always creates a CITIZEN. There is no `roles` field to send \u2014 volunteering is an action a citizen takes, not a role they hold, and AGENCY / SPONSOR / ADMIN come from the seed or an admin grant.\n\nThe email carries a random suffix so the collection can be re-run: the seed already owns the fixed addresses, and a duplicate returns 409.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Ada Lovelace\",\n  \"email\": \"ada-{{$randomUUID}}@example.com\",\n  \"password\": \"super-secret\"\n}",
@@ -176,57 +176,6 @@
                   "});",
                   "pm.test('never leaks the password hash', () => {",
                   "  pm.expect(pm.response.text()).to.not.include('passwordHash');",
-                  "});",
-                  "pm.collectionVariables.set('token', json.token);",
-                  "pm.collectionVariables.set('user_id', json.user.id);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Register \u2014 volunteer",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{base_url}}/auth/register",
-              "host": [
-                "{{base_url}}"
-              ],
-              "path": [
-                "auth",
-                "register"
-              ]
-            },
-            "description": "Asking for VOLUNTEER alone is normalized to [VOLUNTEER, CITIZEN]: a volunteer is a citizen who also does the work, so there is no actor who can fix a problem but not report one.",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Kofi Mensah\",\n  \"email\": \"kofi-{{$randomUUID}}@example.com\",\n  \"password\": \"super-secret\",\n  \"roles\": [\n    \"VOLUNTEER\"\n  ]\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "auth": {
-              "type": "noauth"
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "const json = pm.response.json();",
-                  "pm.test('VOLUNTEER implies CITIZEN', () => {",
-                  "  pm.expect(json.user.roles).to.have.members(['VOLUNTEER', 'CITIZEN']);",
                   "});",
                   "pm.collectionVariables.set('token', json.token);",
                   "pm.collectionVariables.set('user_id', json.user.id);"
@@ -777,7 +726,7 @@
                 "register"
               ]
             },
-            "description": "Rejected at the DTO, before any service code runs. Agencies are the authoritative owners of issues, so that authority cannot be claimed by anyone who can reach the signup form.",
+            "description": "RegisterDto has no `roles` field at all, so this is rejected as an unknown property by the global forbidNonWhitelisted pipe \u2014 a 400 because there is nothing to submit, not because a validator turned it down. Agencies are the authoritative owners of issues, so that authority cannot be claimed by anyone who can reach the signup form.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Mallory\",\n  \"email\": \"mallory@example.com\",\n  \"password\": \"super-secret\",\n  \"roles\": [\n    \"ADMIN\"\n  ]\n}",
@@ -826,10 +775,56 @@
                 "register"
               ]
             },
-            "description": "Same gate. Only CITIZEN and VOLUNTEER are self-serve.",
+            "description": "Same gate, same reason: there is no field to put it in.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Mallory\",\n  \"email\": \"mallory2@example.com\",\n  \"password\": \"super-secret\",\n  \"roles\": [\n    \"AGENCY\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Even a harmless roles field is refused",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "CITIZEN is what registration assigns anyway \u2014 and it is still a 400. That is the point: the field does not exist, so there is no gate to get wrong.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ada\",\n  \"email\": \"ada-{{$randomUUID}}@example.com\",\n  \"password\": \"super-secret\",\n  \"roles\": [\n    \"CITIZEN\"\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"

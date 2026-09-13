@@ -104,14 +104,14 @@ describe('UsersService', () => {
     expect(select).toHaveBeenCalledWith('+passwordHash');
   });
 
-  it('applies role implications when setting roles', async () => {
+  it('replaces roles rather than merging them', async () => {
     model.findByIdAndUpdate.mockReturnValue(execOf({ roles: [] }));
 
-    await service.setRoles('507f1f77bcf86cd799439011', [Role.VOLUNTEER]);
+    await service.setRoles('507f1f77bcf86cd799439011', [Role.AGENCY]);
 
     expect(model.findByIdAndUpdate).toHaveBeenCalledWith(
       '507f1f77bcf86cd799439011',
-      { roles: [Role.VOLUNTEER, Role.CITIZEN] },
+      { roles: [Role.AGENCY] },
       { returnDocument: 'after', runValidators: true },
     );
   });

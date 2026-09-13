@@ -44,6 +44,14 @@ export default defineConfig({
     // These specs share one database and truncate collections between tests,
     // so they must not run concurrently.
     fileParallelism: false,
+    // Each beforeEach registers and logs in two accounts — four bcrypt
+    // operations at cost factor 12, measured at ~700ms each, so roughly three
+    // seconds of pure CPU before a single assertion runs. Vitest's 10s default
+    // leaves little headroom, and when the machine is busy the resulting
+    // failures read as database faults (connection pool cleared, hook timed
+    // out) rather than as the scheduling problem they are.
+    hookTimeout: 60_000,
+    testTimeout: 60_000,
     env: testEnv(),
   },
 });

@@ -21,10 +21,13 @@ interface SeedUser {
 // without a registration detour.
 const SAMPLE_USERS: SeedUser[] = [
   { name: 'Ama Citizen', email: 'citizen@civicon.test', roles: [Role.CITIZEN] },
+  // A second citizen, not a second role. The name describes what this person
+  // does, not what they are — two distinct citizens are what the
+  // anti-self-dealing rule needs to be demonstrable: one reports, the other acts.
   {
     name: 'Kofi Volunteer',
     email: 'volunteer@civicon.test',
-    roles: [Role.CITIZEN, Role.VOLUNTEER],
+    roles: [Role.CITIZEN],
   },
   {
     name: 'Sanitation Officer',

@@ -1,33 +1,20 @@
 /**
- * The platform's actor types. Verbatim from the execution guide §4.1 — this is
- * the single source of truth; never redefine these strings locally.
+ * The platform's actor types: the public, the authority, the funder, the
+ * operator. Single source of truth — never redefine these strings locally.
+ *
+ * There is deliberately no VOLUNTEER role, diverging from execution guide §4.1.
+ * Volunteering is an action a citizen takes, not an identity they hold: a claim
+ * is refused because of the ISSUE's eligibility, lock and assignment state, and
+ * anti-self-dealing compares reportedBy against volunteerId. Neither reads a
+ * role, so a VOLUNTEER role would gate nothing.
+ *
+ * See docs/superpowers/specs/2026-09-13-auth-identity-design.md §1 for the full
+ * argument and for what should be built instead when RESTRICTED eligibility
+ * arrives (a per-category credential, not a role).
  */
 export enum Role {
   CITIZEN = 'CITIZEN',
-  VOLUNTEER = 'VOLUNTEER',
   AGENCY = 'AGENCY',
   SPONSOR = 'SPONSOR',
   ADMIN = 'ADMIN',
-}
-
-/**
- * Roles a user may grant themselves at registration. AGENCY, SPONSOR and ADMIN
- * are deliberately absent: agencies are the authoritative owners of issues, so
- * that authority cannot be self-assigned by anyone who can reach the signup
- * form. They are created by the seed or by an admin.
- */
-export const PUBLIC_ROLES: readonly Role[] = [Role.CITIZEN, Role.VOLUNTEER];
-
-/**
- * A volunteer is a citizen who also does the work — there is no coherent actor
- * who can fix a problem but not report one. Granting VOLUNTEER therefore grants
- * CITIZEN too. The privileged roles are orthogonal to citizenship and imply
- * nothing.
- */
-export function applyRoleImplications(roles: Role[]): Role[] {
-  const result = new Set<Role>(roles);
-  if (result.has(Role.VOLUNTEER)) {
-    result.add(Role.CITIZEN);
-  }
-  return [...result];
 }
