@@ -1,0 +1,1217 @@
+{
+  "info": {
+    "name": "Civicon \u2014 Auth & Identity",
+    "description": "Authentication and role-aware identity for the Civicon backend.\n\n## Before you run this\n\n```bash\ndocker compose up -d   # MongoDB\nnpm run seed           # demo accounts, one per role\nnpm run start          # http://localhost:9000\n```\n\n## How it works\n\nEvery route requires a bearer token unless marked `@Public()`. Both `register` and `login` return `{ token, user }`; the token's claims carry the user's roles, so guards need no database round-trip, while `GET /auth/me` re-reads the database and is authoritative when roles have changed since the token was issued.\n\nCollection-level auth is `Bearer {{token}}`, and the sign-in requests populate that variable through their test scripts \u2014 so run a login first and everything else just works.\n\n## Folders\n\n- **Public** \u2014 the only routes reachable without a token\n- **Auth** \u2014 sign-up, sign-in, and who-am-I\n- **Users (admin only)** \u2014 administration; self-contained and safe to run end-to-end\n- **Guardrails** \u2014 the security properties, each asserting its status code. Run this folder as a regression suite.\n\nRoles: `CITIZEN`, `VOLUNTEER`, `AGENCY`, `SPONSOR`, `ADMIN`. Only the first two are self-serve.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:9000",
+      "description": "PORT defaults to 9000 in .env.example."
+    },
+    {
+      "key": "demo_password",
+      "value": "Password123!",
+      "description": "Shared by every account created by `npm run seed`."
+    },
+    {
+      "key": "token",
+      "value": "",
+      "description": "Set automatically by any sign-in request."
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "description": "Set by register/login."
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "description": "Set by 'Sign in as admin'."
+    },
+    {
+      "key": "citizen_token",
+      "value": "",
+      "description": "Set by 'Sign in as citizen'."
+    },
+    {
+      "key": "target_user_id",
+      "value": "",
+      "description": "Set by 'Create a disposable user'."
+    },
+    {
+      "key": "wrong_password_message",
+      "value": "",
+      "description": "Used to prove the 401 messages are identical."
+    }
+  ],
+  "item": [
+    {
+      "name": "Public",
+      "description": "The only routes reachable without a token. Everything else returns 401 \u2014 the guards are registered globally, so a route is protected unless it opts out with @Public().",
+      "item": [
+        {
+          "name": "Root",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                ""
+              ]
+            },
+            "description": "Marked @Public() in app.controller.ts.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Hello",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/hello",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hello"
+              ]
+            },
+            "description": "Marked @Public() in hello.controller.ts.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Sign-up and sign-in. Both register and login return { token, user }; the token's claims carry the user's roles, so guards need no database round-trip.\n\nLogin and register write `token` and `user_id` into the collection variables, so every later request is authenticated automatically.",
+      "item": [
+        {
+          "name": "Register \u2014 citizen",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Omitting `roles` defaults to [CITIZEN].\n\nThe email carries a random suffix so the collection can be re-run: the seed already owns the fixed addresses, and a duplicate returns 409.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ada Lovelace\",\n  \"email\": \"ada-{{$randomUUID}}@example.com\",\n  \"password\": \"super-secret\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('returns a token and a user', () => {",
+                  "  pm.expect(json.token).to.be.a('string');",
+                  "  pm.expect(json.user).to.be.an('object');",
+                  "});",
+                  "pm.test('never leaks the password hash', () => {",
+                  "  pm.expect(pm.response.text()).to.not.include('passwordHash');",
+                  "});",
+                  "pm.collectionVariables.set('token', json.token);",
+                  "pm.collectionVariables.set('user_id', json.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register \u2014 volunteer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Asking for VOLUNTEER alone is normalized to [VOLUNTEER, CITIZEN]: a volunteer is a citizen who also does the work, so there is no actor who can fix a problem but not report one.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Kofi Mensah\",\n  \"email\": \"kofi-{{$randomUUID}}@example.com\",\n  \"password\": \"super-secret\",\n  \"roles\": [\n    \"VOLUNTEER\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('VOLUNTEER implies CITIZEN', () => {",
+                  "  pm.expect(json.user.roles).to.have.members(['VOLUNTEER', 'CITIZEN']);",
+                  "});",
+                  "pm.collectionVariables.set('token', json.token);",
+                  "pm.collectionVariables.set('user_id', json.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Returns 200 (not 201) \u2014 signing in creates no resource.\n\nUses the seeded volunteer account. Run `npm run seed` first.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"volunteer@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('returns a token and a user', () => {",
+                  "  pm.expect(json.token).to.be.a('string');",
+                  "  pm.expect(json.user).to.be.an('object');",
+                  "});",
+                  "pm.test('never leaks the password hash', () => {",
+                  "  pm.expect(pm.response.text()).to.not.include('passwordHash');",
+                  "});",
+                  "pm.collectionVariables.set('token', json.token);",
+                  "pm.collectionVariables.set('user_id', json.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Who am I",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Re-reads the database, so the roles returned are authoritative even when the bearer's token was issued before an admin changed them. This is how a client picks up a role change without signing in again."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('reports the caller kind', () => {",
+                  "  pm.expect(pm.response.json().roles).to.be.an('array').that.is.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Users (admin only)",
+      "description": "User administration, restricted to ADMIN. There is no POST /users \u2014 registration is the only account-creation path, since a second one would produce users with no password.\n\nThis folder is self-contained: it signs in as the seeded admin, creates a disposable user to operate on, and deletes it at the end. Safe to run end-to-end.",
+      "item": [
+        {
+          "name": "Sign in as admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Seeded by `npm run seed`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('is an admin', () => pm.expect(json.user.roles).to.include('ADMIN'));",
+                  "pm.collectionVariables.set('token', json.token);",
+                  "pm.collectionVariables.set('admin_token', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create a disposable user",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Registered with a random email so the folder can be re-run. Its id lands in `target_user_id`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Disposable\",\n  \"email\": \"disposable-{{$randomUUID}}@example.com\",\n  \"password\": \"super-secret\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('target_user_id', json.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users"
+              ]
+            },
+            "description": "Requires ADMIN. The password hash is absent from every response: the schema marks it `select: false` and the toJSON transform deletes it.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('never leaks the password hash', () => {",
+                  "  pm.expect(pm.response.text()).to.not.include('passwordHash');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get one user",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/{{target_user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{target_user_id}}"
+              ]
+            },
+            "description": "A malformed id returns 400 (not 500) via ParseObjectIdPipe; a well-formed but unknown id returns 404.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update a user",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{target_user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{target_user_id}}"
+              ]
+            },
+            "description": "UpdateUserDto carries no `roles` field, so this route cannot be used to escalate privileges \u2014 see the Guardrails folder.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Renamed By Admin\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Grant roles",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{target_user_id}}/roles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{target_user_id}}",
+                "roles"
+              ]
+            },
+            "description": "The admin-only path by which AGENCY, SPONSOR and ADMIN accounts come into existence.\n\nReplace semantics: the array supplied becomes the user's roles, so this revokes as well as grants. AGENCY implies nothing, so CITIZEN is dropped here.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roles\": [\n    \"AGENCY\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('replaces rather than merges', () => {",
+                  "  pm.expect(pm.response.json().roles).to.eql(['AGENCY']);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete the disposable user",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/{{target_user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{target_user_id}}"
+              ]
+            },
+            "description": "Returns 204 No Content.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Guardrails",
+      "description": "Every one of these is enforced server-side, not by hiding a control in a UI. Run this folder as a security regression suite \u2014 all requests assert their status code.",
+      "item": [
+        {
+          "name": "Sign in as admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "This folder is self-contained, so it obtains its own tokens rather than depending on the folders above.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('admin_token', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in as citizen",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Captures a non-privileged token for the 403 checks below, and a user id for the escalation attempts.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"citizen@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('citizen_token', json.token);",
+                  "pm.collectionVariables.set('user_id', json.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cannot self-assign ADMIN",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Rejected at the DTO, before any service code runs. Agencies are the authoritative owners of issues, so that authority cannot be claimed by anyone who can reach the signup form.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mallory\",\n  \"email\": \"mallory@example.com\",\n  \"password\": \"super-secret\",\n  \"roles\": [\n    \"ADMIN\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 400', () => pm.response.to.have.status(400));",
+                  "pm.test('names the offending field', () => {",
+                  "  pm.expect(JSON.stringify(pm.response.json().message)).to.include('roles');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cannot self-assign AGENCY",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Same gate. Only CITIZEN and VOLUNTEER are self-serve.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Mallory\",\n  \"email\": \"mallory2@example.com\",\n  \"password\": \"super-secret\",\n  \"roles\": [\n    \"AGENCY\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "No token is 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "The guards are global, so a route is protected by default. A route added in a later phase that forgets its guard still fails closed.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Forged token is 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Malformed, expired and wrongly-signed tokens are all just 'no'.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "not-a-real-token",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wrong role is 403",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users"
+              ]
+            },
+            "description": "Authenticated, but a CITIZEN holds no ADMIN role.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Citizen cannot grant roles",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}/roles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}",
+                "roles"
+              ]
+            },
+            "description": "The privilege-escalation route is itself ADMIN-only.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roles\": [\n    \"ADMIN\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wrong password is 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Note the message, and compare it with the next request.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"citizen@civicon.test\",\n  \"password\": \"not-the-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 401', () => pm.response.to.have.status(401));",
+                  "pm.collectionVariables.set('wrong_password_message', pm.response.json().message);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown email is an identical 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Byte-for-byte the same response as a wrong password \u2014 and as an inactive account, and as a user document carrying no password hash. Distinguishing them would turn login into an account-enumeration oracle.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"nobody-at-all@example.com\",\n  \"password\": \"super-secret\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 401', () => pm.response.to.have.status(401));",
+                  "pm.test('is indistinguishable from a wrong password', () => {",
+                  "  pm.expect(pm.response.json().message).to.eql(",
+                  "    pm.collectionVariables.get('wrong_password_message'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH cannot escalate roles",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "`roles` is not a field on UpdateUserDto, and the global ValidationPipe runs with forbidNonWhitelisted \u2014 so an unknown property is a 400 rather than a silent drop. Role changes go only through PATCH /users/:id/roles.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roles\": [\n    \"ADMIN\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{admin_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Inactive account is 401",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "The seeded `jane@example.com` has isActive: false. The response does not say so \u2014 that would confirm the address is registered.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"jane@example.com\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

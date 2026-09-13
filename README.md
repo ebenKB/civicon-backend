@@ -138,6 +138,28 @@ must supply `JWT_SECRET` in its environment — `.env` is gitignored.
 **Known gap:** there is no rate limiting on `POST /auth/login`. Adding
 `@nestjs/throttler` to that route is the next thing this module needs.
 
+### Postman collection
+
+[`postman/`](postman/) holds an importable collection covering every auth and
+user route, plus a **Guardrails** folder that asserts the security properties —
+privileged roles cannot be self-assigned, a missing token is 401, a wrong role
+is 403, and every login failure returns an identical message.
+
+Import both files into Postman, or run them headlessly:
+
+```bash
+docker compose up -d && npm run seed && npm run start   # in one terminal
+postman collection run postman/civicon-auth.postman_collection.json \
+  -e postman/civicon-local.postman_environment.json
+```
+
+25 requests, 33 assertions. Sign-in requests capture their token into a
+collection variable, so the rest of the collection authenticates itself. Each
+folder obtains its own tokens and registers users under randomised emails, so
+folders run independently and the collection can be re-run without a reseed.
+
+Run just the security checks with `-i Guardrails`.
+
 ## Compile and run the project
 
 ```bash
