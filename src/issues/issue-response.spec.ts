@@ -1,0 +1,67 @@
+import { Types } from 'mongoose';
+import { IssueCategory, IssueStatus } from '../contracts/index.js';
+import { IssueDocument } from './schemas/issue.schema.js';
+import { toPublicIssue } from './issue-response.js';
+
+const reporterId = new Types.ObjectId();
+const issueId = new Types.ObjectId();
+
+const issueDoc = (overrides: Record<string, unknown> = {}) =>
+  ({
+    _id: issueId,
+    title: 'Broken streetlight',
+    description: 'Dark since Tuesday.',
+    category: IssueCategory.ELECTRICITY,
+    location: 'Ring Road East, near the bank',
+    status: IssueStatus.OPEN,
+    reportedBy: reporterId,
+    createdAt: new Date('2026-09-13T10:00:00Z'),
+    updatedAt: new Date('2026-09-13T10:00:00Z'),
+    ...overrides,
+  }) as unknown as IssueDocument;
+
+describe('toPublicIssue', () => {
+  it('maps the document onto the public shape', () => {
+    expect(toPublicIssue(issueDoc())).toEqual({
+      id: issueId.toString(),
+      title: 'Broken streetlight',
+      description: 'Dark since Tuesday.',
+      category: IssueCategory.ELECTRICITY,
+      location: 'Ring Road East, near the bank',
+      status: IssueStatus.OPEN,
+      reportedBy: reporterId.toString(),
+      statusReason: undefined,
+      duplicateOf: undefined,
+      createdAt: new Date('2026-09-13T10:00:00Z'),
+      updatedAt: new Date('2026-09-13T10:00:00Z'),
+    });
+  });
+
+  it('renders ids as strings, not ObjectIds', () => {
+    const result = toPublicIssue(issueDoc());
+
+    expect(typeof result.id).toBe('string');
+    expect(typeof result.reportedBy).toBe('string');
+  });
+
+  it('includes the triage fields when they are set', () => {
+    const duplicateOf = new Types.ObjectId();
+    const result = toPublicIssue(
+      issueDoc({
+        status: IssueStatus.DUPLICATE,
+        statusReason: 'Already reported',
+        duplicateOf,
+      }),
+    );
+
+    expect(result.status).toBe(IssueStatus.DUPLICATE);
+    expect(result.statusReason).toBe('Already reported');
+    expect(result.duplicateOf).toBe(duplicateOf.toString());
+  });
+
+  it('does not leak fields that are not in the public shape', () => {
+    const result = toPublicIssue(issueDoc({ internalNote: 'secret' }));
+
+    expect(result).not.toHaveProperty('internalNote');
+  });
+});
