@@ -23,7 +23,10 @@ export class Issue {
   @Prop({ required: true, trim: true, maxlength: 2000 })
   description: string;
 
-  @Prop({ required: true, enum: Object.values(IssueCategory) })
+  // Explicit `type` is required: TypeScript emits `Object` as the design:type
+  // metadata for an enum-typed property, so without it Mongoose reads this
+  // options object itself as a nested path definition and throws.
+  @Prop({ type: String, required: true, enum: Object.values(IssueCategory) })
   category: IssueCategory;
 
   // Free text: a landmark or address. Geospatial coordinates are a later,
@@ -34,6 +37,7 @@ export class Issue {
   // Written by IssueLifecycleService and nowhere else. Creation takes this
   // default rather than passing a value.
   @Prop({
+    type: String,
     required: true,
     enum: Object.values(IssueStatus),
     default: IssueStatus.OPEN,

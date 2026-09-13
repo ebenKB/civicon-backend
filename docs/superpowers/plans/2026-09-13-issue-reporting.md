@@ -282,7 +282,10 @@ export class Issue {
   @Prop({ required: true, trim: true, maxlength: 2000 })
   description: string;
 
-  @Prop({ required: true, enum: Object.values(IssueCategory) })
+  // Explicit `type` is required: TypeScript emits `Object` as the design:type
+  // metadata for an enum-typed property, so without it Mongoose reads this
+  // options object itself as a nested path definition and throws.
+  @Prop({ type: String, required: true, enum: Object.values(IssueCategory) })
   category: IssueCategory;
 
   // Free text: a landmark or address. Geospatial coordinates are a later,
@@ -293,6 +296,7 @@ export class Issue {
   // Written by IssueLifecycleService and nowhere else. Creation takes this
   // default rather than passing a value.
   @Prop({
+    type: String,
     required: true,
     enum: Object.values(IssueStatus),
     default: IssueStatus.OPEN,
@@ -373,6 +377,43 @@ export function toPublicIssue(issue: IssueDocument): PublicIssue {
 
 Run: `npx vitest run src/issues/issue-response.spec.ts`
 Expected: PASS (4 tests).
+
+Note: this spec imports only the `IssueDocument` *type*, which the transpiler
+erases, so the schema module never executes and a broken schema would still show
+green here. `src/issues/schemas/issue.schema.spec.ts` (next step) imports
+`IssueSchema` as a value and is what actually proves the schema builds.
+
+- [ ] **Step 5b: Prove the schema actually builds**
+
+Create `src/issues/schemas/issue.schema.spec.ts`:
+
+```ts
+import { IssueCategory, IssueStatus } from '../../contracts/index.js';
+import { IssueSchema } from './issue.schema.js';
+
+describe('IssueSchema', () => {
+  it('builds', () => {
+    expect(IssueSchema.path('title')).toBeDefined();
+  });
+
+  it('stores the enums as strings', () => {
+    expect(IssueSchema.path('status').instance).toBe('String');
+    expect(IssueSchema.path('category').instance).toBe('String');
+  });
+
+  it('defaults status to OPEN so creation need not pass one', () => {
+    expect(IssueSchema.path('status').options.default).toBe(IssueStatus.OPEN);
+  });
+
+  it('references the reporter as an ObjectId', () => {
+    expect(IssueSchema.path('reportedBy').instance).toBe('ObjectId');
+    expect(IssueSchema.path('reportedBy').options.ref).toBe('User');
+  });
+});
+```
+
+Run: `npx vitest run src/issues/schemas/issue.schema.spec.ts`
+Expected: PASS.
 
 - [ ] **Step 6: Commit**
 
