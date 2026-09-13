@@ -67,11 +67,15 @@ $ npm run seed -- --fresh
 
 Sample records live in [`src/seed.ts`](src/seed.ts).
 
-The app reads `MONGODB_URI` from `.env`. It fails fast at boot if that variable
-is missing, rather than silently defaulting to localhost.
+### Connection config
 
-`authSource=admin` in the URI is required: the root user provisioned by the
-container lives in the `admin` database, not in `civicon`.
+The `MONGO_*` variables in `.env` are the single source of truth: docker-compose
+provisions the container with them, and the app composes its connection URI from
+the same values ([`src/config/database.config.ts`](src/config/database.config.ts)).
+Change a password or port once and both sides stay in sync.
+
+For hosted deployments where the provider issues a connection string as a whole
+(Atlas, replica sets), set `MONGODB_URI` — it overrides the parts.
 
 ## Compile and run the project
 
@@ -100,12 +104,15 @@ $ npm run test:cov
 ```
 
 The e2e suite talks to a real database and truncates collections between tests,
-so it runs against a **separate** database: `vitest.config.e2e.ts` derives
-`<MONGODB_URI database>_test` (e.g. `civicon_test`) and injects it as
-`MONGODB_URI`. Your development data is left alone.
+so it runs against a **separate** database. `vitest.config.e2e.ts` redirects
+`MONGO_DATABASE` to `<db>_test` (e.g. `civicon_test`), leaving development data
+alone. As a backstop, the suite refuses to start if the connected database name
+does not end in `_test`.
 
-As a backstop, the suite refuses to start if the connected database name does
-not end in `_test`.
+If you override the connection with a full `MONGODB_URI`, it is not rewritten —
+connection strings can carry multiple hosts and options that do not survive
+naive parsing. Set `MONGODB_URI_TEST` explicitly in that case; the suite fails
+with a clear message if you don't.
 
 ## Deployment
 

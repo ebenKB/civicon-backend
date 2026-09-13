@@ -1,8 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Module, ValidationPipe } from '@nestjs/common';
+import { APP_FILTER, APP_PIPE } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
+import { MongoExceptionFilter } from './common/filters/mongo-exception.filter.js';
+import { buildMongoUri } from './config/database.config.js';
 import { HelloModule } from './hello/hello.module.js';
 import { UsersModule } from './users/users.module.js';
 
@@ -17,15 +20,29 @@ import { UsersModule } from './users/users.module.js';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
-        // getOrThrow so a missing URI fails loudly at boot rather than
-        // silently falling back to localhost.
-        uri: configService.getOrThrow<string>('MONGODB_URI'),
+        uri: buildMongoUri(configService),
       }),
     }),
     HelloModule,
     UsersModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Registered here rather than in main.ts so tests that build the app from
+    // AppModule get the identical pipe/filter stack as production.
+    {
+      provide: APP_PIPE,
+      useValue: new ValidationPipe({
+        whitelist: true, // strip properties with no DTO decorator
+        forbidNonWhitelisted: true, // 400 instead of silently dropping them
+        transform: true,
+      }),
+    },
+    {
+      provide: APP_FILTER,
+      useClass: MongoExceptionFilter,
+    },
+  ],
 })
 export class AppModule {}

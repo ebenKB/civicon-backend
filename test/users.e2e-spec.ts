@@ -1,4 +1,4 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { getConnectionToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Connection } from 'mongoose';
@@ -17,14 +17,9 @@ describe('UsersController (e2e)', () => {
       imports: [AppModule],
     }).compile();
 
+    // The ValidationPipe and MongoExceptionFilter come from AppModule
+    // (APP_PIPE / APP_FILTER), so this app matches production exactly.
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
     await app.init();
 
     connection = moduleFixture.get<Connection>(getConnectionToken());
@@ -116,5 +111,34 @@ describe('UsersController (e2e)', () => {
       .post('/users')
       .send({ name: 'X', email: 'x@example.com', role: 'admin' })
       .expect(400);
+  });
+
+  // Regression: these used to escape as opaque 500s.
+  it.each([
+    ['get', '/users/not-an-object-id'],
+    ['patch', '/users/not-an-object-id'],
+    ['delete', '/users/not-an-object-id'],
+  ])('returns 400, not 500, for a malformed id (%s)', async (method, url) => {
+    const res = await request(app.getHttpServer())[method](url).send({});
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 409, not 500, on a duplicate email', async () => {
+    const payload = { name: 'Ada', email: 'ada@example.com' };
+
+    await request(app.getHttpServer()).post('/users').send(payload).expect(201);
+
+    const res = await request(app.getHttpServer())
+      .post('/users')
+      .send({ ...payload, name: 'Ada Again' })
+      .expect(409);
+
+    expect(res.body.message).toMatch(/email/);
+  });
+
+  it('returns 404 for a well-formed but unknown id', async () => {
+    await request(app.getHttpServer())
+      .get('/users/000000000000000000000000')
+      .expect(404);
   });
 });
