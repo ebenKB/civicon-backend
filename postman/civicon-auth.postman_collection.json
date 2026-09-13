@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "Civicon \u2014 Auth & Identity",
-    "description": "Authentication and role-aware identity for the Civicon backend.\n\n## Before you run this\n\n```bash\ndocker compose up -d   # MongoDB\nnpm run seed           # demo accounts, one per role\nnpm run start          # http://localhost:9000\n```\n\n## How it works\n\nEvery route requires a bearer token unless marked `@Public()`. Both `register` and `login` return `{ token, user }`; the token's claims carry the user's roles, so guards need no database round-trip, while `GET /auth/me` re-reads the database and is authoritative when roles have changed since the token was issued.\n\nCollection-level auth is `Bearer {{token}}`, and the sign-in requests populate that variable through their test scripts \u2014 so run a login first and everything else just works.\n\n## Folders\n\n- **Public** \u2014 the only routes reachable without a token\n- **Auth** \u2014 sign-up, sign-in, and who-am-I\n- **Users (admin only)** \u2014 administration; self-contained and safe to run end-to-end\n- **Guardrails** \u2014 the security properties, each asserting its status code. Run this folder as a regression suite.\n\nRoles: `CITIZEN`, `AGENCY`, `SPONSOR`, `ADMIN`. Registration always creates a CITIZEN and accepts no `roles` field; the other three come from the seed or an admin grant.\n\nThere is deliberately no VOLUNTEER role \u2014 volunteering is an action a citizen takes, gated by each issue's eligibility and lock state rather than by who the caller is.",
+    "name": "Civicon — Auth & Issues",
+    "description": "Auth, identity and civic issue reporting for the Civicon backend.\n\nStart the API with `npm run start:dev` and seed it with `npm run seed` — every seeded account uses the password in {{demo_password}}.\n\nFolders run top to bottom: later requests reuse tokens and ids that earlier ones set.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "auth": {
@@ -54,12 +54,37 @@
       "key": "wrong_password_message",
       "value": "",
       "description": "Used to prove the 401 messages are identical."
+    },
+    {
+      "key": "agency_token",
+      "value": "",
+      "description": "Set by 'Sign in as agency'."
+    },
+    {
+      "key": "other_citizen_token",
+      "value": "",
+      "description": "Set by 'Sign in as a second citizen'."
+    },
+    {
+      "key": "issue_id",
+      "value": "",
+      "description": "Set by 'Report an issue'."
+    },
+    {
+      "key": "duplicate_issue_id",
+      "value": "",
+      "description": "Set by 'Report a second issue'."
+    },
+    {
+      "key": "guard_issue_id",
+      "value": "",
+      "description": "Set by 'Report a throwaway issue'."
     }
   ],
   "item": [
     {
       "name": "Public",
-      "description": "The only routes reachable without a token. Everything else returns 401 \u2014 the guards are registered globally, so a route is protected unless it opts out with @Public().",
+      "description": "The only routes reachable without a token. Everything else returns 401 — the guards are registered globally, so a route is protected unless it opts out with @Public().",
       "item": [
         {
           "name": "Root",
@@ -130,7 +155,7 @@
       "description": "Sign-up and sign-in. Both register and login return { token, user }; the token's claims carry the user's roles, so guards need no database round-trip.\n\nLogin and register write `token` and `user_id` into the collection variables, so every later request is authenticated automatically.",
       "item": [
         {
-          "name": "Register \u2014 citizen",
+          "name": "Register — citizen",
           "request": {
             "method": "POST",
             "header": [
@@ -149,7 +174,7 @@
                 "register"
               ]
             },
-            "description": "Registration always creates a CITIZEN. There is no `roles` field to send \u2014 volunteering is an action a citizen takes, not a role they hold, and AGENCY / SPONSOR / ADMIN come from the seed or an admin grant.\n\nThe email carries a random suffix so the collection can be re-run: the seed already owns the fixed addresses, and a duplicate returns 409.",
+            "description": "Registration always creates a CITIZEN. There is no `roles` field to send — volunteering is an action a citizen takes, not a role they hold, and AGENCY / SPONSOR / ADMIN come from the seed or an admin grant.\n\nThe email carries a random suffix so the collection can be re-run: the seed already owns the fixed addresses, and a duplicate returns 409.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Ada Lovelace\",\n  \"email\": \"ada-{{$randomUUID}}@example.com\",\n  \"password\": \"super-secret\"\n}",
@@ -204,7 +229,7 @@
                 "login"
               ]
             },
-            "description": "Returns 200 (not 201) \u2014 signing in creates no resource.\n\nUses the seeded volunteer account. Run `npm run seed` first.",
+            "description": "Returns 200 (not 201) — signing in creates no resource.\n\nUses the seeded volunteer account. Run `npm run seed` first.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"volunteer@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
@@ -275,7 +300,7 @@
     },
     {
       "name": "Users (admin only)",
-      "description": "User administration, restricted to ADMIN. There is no POST /users \u2014 registration is the only account-creation path, since a second one would produce users with no password.\n\nThis folder is self-contained: it signs in as the seeded admin, creates a disposable user to operate on, and deletes it at the end. Safe to run end-to-end.",
+      "description": "User administration, restricted to ADMIN. There is no POST /users — registration is the only account-creation path, since a second one would produce users with no password.\n\nThis folder is self-contained: it signs in as the seeded admin, creates a disposable user to operate on, and deletes it at the end. Safe to run end-to-end.",
       "item": [
         {
           "name": "Sign in as admin",
@@ -475,7 +500,7 @@
                 "{{target_user_id}}"
               ]
             },
-            "description": "UpdateUserDto carries no `roles` field, so this route cannot be used to escalate privileges \u2014 see the Guardrails folder.",
+            "description": "UpdateUserDto carries no `roles` field, so this route cannot be used to escalate privileges — see the Guardrails folder.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Renamed By Admin\"\n}",
@@ -607,8 +632,1254 @@
       ]
     },
     {
+      "name": "Issues",
+      "description": "The reporting slice: a citizen reports, anyone reads, an agency triages.\n\nRun top to bottom — each request feeds the next through collection variables.",
+      "item": [
+        {
+          "name": "Sign in as citizen",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Signs in a seeded account. `npm run seed` creates it; every seeded account shares {{demo_password}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"citizen@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('citizen_token', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in as agency",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Signs in a seeded account. `npm run seed` creates it; every seeded account shares {{demo_password}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"agency@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('agency_token', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Report an issue",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues"
+              ]
+            },
+            "description": "Only a CITIZEN may report. `reportedBy` is taken from the token and `status` from the schema default, so neither can be supplied here.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Collapsed culvert on the school road\",\n  \"description\": \"The culvert gave way after Sunday rain; children are wading through.\",\n  \"category\": \"DRAINAGE\",\n  \"location\": \"School road, near the chapel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 201', () => pm.response.to.have.status(201));",
+                  "pm.test('opens the issue', () => pm.expect(json.status).to.eql('OPEN'));",
+                  "pm.test('attributes it to the caller', () => pm.expect(json.reportedBy).to.be.a('string'));",
+                  "pm.collectionVariables.set('issue_id', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List issues — no token needed",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues"
+              ]
+            },
+            "description": "The civic record is public: a transparency platform that requires a login is not one.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('returns an array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter and page",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues?status=OPEN&category=DRAINAGE&limit=5",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "OPEN"
+                },
+                {
+                  "key": "category",
+                  "value": "DRAINAGE"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "Filters: `status`, `category`, `reportedBy`. Paging: `limit` (default 20, max 100) and `offset`. An unknown enum value is a 400.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('honours the filters', () => pm.response.json().forEach(i => {",
+                  "  pm.expect(i.status).to.eql('OPEN');",
+                  "  pm.expect(i.category).to.eql('DRAINAGE');",
+                  "}));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Read one issue — no token needed",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues/{{issue_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{issue_id}}"
+              ]
+            },
+            "description": "A malformed id returns 400 via ParseObjectIdPipe; a well-formed but unknown id returns 404.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('never leaks the reporter\\u2019s account', () => pm.expect(pm.response.text()).to.not.include('passwordHash'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Correct my own issue",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{issue_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{issue_id}}"
+              ]
+            },
+            "description": "Ownership, not role, is the gate here — and only while the issue is still OPEN. An admin editing someone else’s issue gets the same 403.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Collapsed culvert on the school road (worsening)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('applies the correction', () => pm.expect(pm.response.json().title).to.include('worsening'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Report a second issue",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues"
+              ]
+            },
+            "description": "Creates the issue that the next request marks as a duplicate of the first.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Culvert collapsed by the chapel\",\n  \"description\": \"The culvert gave way after Sunday rain; children are wading through.\",\n  \"category\": \"DRAINAGE\",\n  \"location\": \"School road, near the chapel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('duplicate_issue_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Agency marks it a duplicate",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{duplicate_issue_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{duplicate_issue_id}}",
+                "status"
+              ]
+            },
+            "description": "DUPLICATE requires a `duplicateOf` naming an existing, different issue.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DUPLICATE\",\n  \"duplicateOf\": \"{{issue_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agency_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('records the duplicate', () => {",
+                  "  pm.expect(json.status).to.eql('DUPLICATE');",
+                  "  pm.expect(json.duplicateOf).to.eql(pm.collectionVariables.get('issue_id'));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Agency rejects the original",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{issue_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{issue_id}}",
+                "status"
+              ]
+            },
+            "description": "REJECTED requires a `reason`. Rejection is the recorded alternative to deleting a report — there is no DELETE route.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"REJECTED\",\n  \"reason\": \"Private land; not a municipal responsibility\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agency_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('records the reason', () => {",
+                  "  pm.expect(json.status).to.eql('REJECTED');",
+                  "  pm.expect(json.statusReason).to.include('Private land');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Issues — guardrails",
+      "description": "Every rule the reporting slice enforces, asserted as a refusal.",
+      "item": [
+        {
+          "name": "Sign in as a second citizen",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Signs in a seeded account. `npm run seed` creates it; every seeded account shares {{demo_password}}.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"volunteer@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('other_citizen_token', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Report a throwaway issue",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues"
+              ]
+            },
+            "description": "An OPEN issue for the ownership checks below — the issue from the Issues folder has already been rejected by this point.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Throwaway issue for guardrail checks\",\n  \"description\": \"The culvert gave way after Sunday rain; children are wading through.\",\n  \"category\": \"DRAINAGE\",\n  \"location\": \"School road, near the chapel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('guard_issue_id', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "No token cannot report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues"
+              ]
+            },
+            "description": "Every route is default-deny; reporting is not @Public().",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Collapsed culvert on the school road\",\n  \"description\": \"The culvert gave way after Sunday rain; children are wading through.\",\n  \"category\": \"DRAINAGE\",\n  \"location\": \"School road, near the chapel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "An agency cannot report",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues"
+              ]
+            },
+            "description": "Agencies triage; they do not file reports. @Roles(CITIZEN) on the route.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Collapsed culvert on the school road\",\n  \"description\": \"The culvert gave way after Sunday rain; children are wading through.\",\n  \"category\": \"DRAINAGE\",\n  \"location\": \"School road, near the chapel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agency_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Body cannot dictate status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues"
+              ]
+            },
+            "description": "CreateIssueDto declares no `status`, so forbidNonWhitelisted refuses it as an unknown property. The gate is structural, not validated.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Collapsed culvert on the school road\",\n  \"description\": \"The culvert gave way after Sunday rain; children are wading through.\",\n  \"category\": \"DRAINAGE\",\n  \"location\": \"School road, near the chapel\",\n  \"status\": \"VERIFIED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 400', () => pm.response.to.have.status(400));",
+                  "pm.test('names the offending field', () => pm.expect(pm.response.text()).to.include('status'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Body cannot dictate the reporter",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues"
+              ]
+            },
+            "description": "Same mechanism: `reportedBy` comes from the token, so a caller cannot attribute a report to someone else.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Collapsed culvert on the school road\",\n  \"description\": \"The culvert gave way after Sunday rain; children are wading through.\",\n  \"category\": \"DRAINAGE\",\n  \"location\": \"School road, near the chapel\",\n  \"reportedBy\": \"507f1f77bcf86cd799439011\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unknown category is refused",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues"
+              ]
+            },
+            "description": "Category is a fixed enum in src/contracts.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Collapsed culvert on the school road\",\n  \"description\": \"The culvert gave way after Sunday rain; children are wading through.\",\n  \"category\": \"NONSENSE\",\n  \"location\": \"School road, near the chapel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Another citizen cannot edit my issue",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{guard_issue_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{guard_issue_id}}"
+              ]
+            },
+            "description": "Ownership is the requirement; reportedBy is compared against the token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Hijacked\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{other_citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A citizen cannot change status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{guard_issue_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{guard_issue_id}}",
+                "status"
+              ]
+            },
+            "description": "Agencies remain the authoritative owners of an issue’s state.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"REJECTED\",\n  \"reason\": \"Mine now\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Claiming belongs to a later slice",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{guard_issue_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{guard_issue_id}}",
+                "status"
+              ]
+            },
+            "description": "CLAIMED, IN_PROGRESS, RESOLVED and VERIFIED exist in the enum but nothing transitions into them yet.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CLAIMED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agency_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 409', () => pm.response.to.have.status(409));",
+                  "pm.test('names both states', () => {",
+                  "  const m = pm.response.json().message;",
+                  "  pm.expect(m).to.include('OPEN');",
+                  "  pm.expect(m).to.include('CLAIMED');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rejecting without a reason is refused",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{guard_issue_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{guard_issue_id}}",
+                "status"
+              ]
+            },
+            "description": "The conditional requirement lives in IssueLifecycleService, not the DTO: which companion field is needed depends on the target status.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"REJECTED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agency_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "An issue cannot duplicate itself",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{guard_issue_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{guard_issue_id}}",
+                "status"
+              ]
+            },
+            "description": "duplicateOf must name a different, existing issue.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DUPLICATE\",\n  \"duplicateOf\": \"{{guard_issue_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agency_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A malformed id is 400, not 500",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues/not-an-object-id",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "not-an-object-id"
+              ]
+            },
+            "description": "ParseObjectIdPipe rejects it at the boundary, before a CastError can escape the data layer.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "An unknown id is 404",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues/000000000000000000000000",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "000000000000000000000000"
+              ]
+            },
+            "description": "Well-formed but absent.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 404', () => pm.response.to.have.status(404));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cannot edit an issue that has left OPEN",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{issue_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{issue_id}}"
+              ]
+            },
+            "description": "Uses the issue the Issues folder rejected: an agency may already have acted on what it read, so the record freezes.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Too late\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 409', () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Guardrails",
-      "description": "Every one of these is enforced server-side, not by hiding a control in a UI. Run this folder as a security regression suite \u2014 all requests assert their status code.",
+      "description": "Every one of these is enforced server-side, not by hiding a control in a UI. Run this folder as a security regression suite — all requests assert their status code.",
       "item": [
         {
           "name": "Sign in as admin",
@@ -726,7 +1997,7 @@
                 "register"
               ]
             },
-            "description": "RegisterDto has no `roles` field at all, so this is rejected as an unknown property by the global forbidNonWhitelisted pipe \u2014 a 400 because there is nothing to submit, not because a validator turned it down. Agencies are the authoritative owners of issues, so that authority cannot be claimed by anyone who can reach the signup form.",
+            "description": "RegisterDto has no `roles` field at all, so this is rejected as an unknown property by the global forbidNonWhitelisted pipe — a 400 because there is nothing to submit, not because a validator turned it down. Agencies are the authoritative owners of issues, so that authority cannot be claimed by anyone who can reach the signup form.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Mallory\",\n  \"email\": \"mallory@example.com\",\n  \"password\": \"super-secret\",\n  \"roles\": [\n    \"ADMIN\"\n  ]\n}",
@@ -821,7 +2092,7 @@
                 "register"
               ]
             },
-            "description": "CITIZEN is what registration assigns anyway \u2014 and it is still a 400. That is the point: the field does not exist, so there is no gate to get wrong.",
+            "description": "CITIZEN is what registration assigns anyway — and it is still a 400. That is the point: the field does not exist, so there is no gate to get wrong.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"name\": \"Ada\",\n  \"email\": \"ada-{{$randomUUID}}@example.com\",\n  \"password\": \"super-secret\",\n  \"roles\": [\n    \"CITIZEN\"\n  ]\n}",
@@ -1077,7 +2348,7 @@
                 "login"
               ]
             },
-            "description": "Byte-for-byte the same response as a wrong password \u2014 and as an inactive account, and as a user document carrying no password hash. Distinguishing them would turn login into an account-enumeration oracle.",
+            "description": "Byte-for-byte the same response as a wrong password — and as an inactive account, and as a user document carrying no password hash. Distinguishing them would turn login into an account-enumeration oracle.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"nobody-at-all@example.com\",\n  \"password\": \"super-secret\"\n}",
@@ -1127,7 +2398,7 @@
                 "{{user_id}}"
               ]
             },
-            "description": "`roles` is not a field on UpdateUserDto, and the global ValidationPipe runs with forbidNonWhitelisted \u2014 so an unknown property is a 400 rather than a silent drop. Role changes go only through PATCH /users/:id/roles.",
+            "description": "`roles` is not a field on UpdateUserDto, and the global ValidationPipe runs with forbidNonWhitelisted — so an unknown property is a 400 rather than a silent drop. Role changes go only through PATCH /users/:id/roles.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"roles\": [\n    \"ADMIN\"\n  ]\n}",
@@ -1180,7 +2451,7 @@
                 "login"
               ]
             },
-            "description": "The seeded `jane@example.com` has isActive: false. The response does not say so \u2014 that would confirm the address is registered.",
+            "description": "The seeded `jane@example.com` has isActive: false. The response does not say so — that would confirm the address is registered.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"jane@example.com\",\n  \"password\": \"{{demo_password}}\"\n}",
