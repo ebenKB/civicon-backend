@@ -15,15 +15,20 @@ import { Roles } from '../auth/decorators/roles.decorator.js';
 import type { AuthenticatedUser } from '../auth/types/jwt-payload.js';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
 import { Role } from '../contracts/index.js';
+import { ChangeStatusDto } from './dto/change-status.dto.js';
 import { CreateIssueDto } from './dto/create-issue.dto.js';
 import { ListIssuesQuery } from './dto/list-issues.query.js';
 import { UpdateIssueDto } from './dto/update-issue.dto.js';
+import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { toPublicIssue } from './issue-response.js';
 import { IssuesService } from './issues.service.js';
 
 @Controller('issues')
 export class IssuesController {
-  constructor(private readonly issuesService: IssuesService) {}
+  constructor(
+    private readonly issuesService: IssuesService,
+    private readonly issueLifecycleService: IssueLifecycleService,
+  ) {}
 
   @Post()
   @Roles(Role.CITIZEN)
@@ -60,6 +65,17 @@ export class IssuesController {
   ) {
     return toPublicIssue(
       await this.issuesService.updateOwn(id, user.id, updateIssueDto),
+    );
+  }
+  // Agencies remain the authoritative owners of an issue's state.
+  @Patch(':id/status')
+  @Roles(Role.AGENCY, Role.ADMIN)
+  async changeStatus(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() changeStatusDto: ChangeStatusDto,
+  ) {
+    return toPublicIssue(
+      await this.issueLifecycleService.changeStatus(id, changeStatusDto),
     );
   }
 }

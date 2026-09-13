@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
 import { IssueCategory, IssueStatus } from '../contracts/index.js';
+import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssuesController } from './issues.controller.js';
 import { IssuesService } from './issues.service.js';
 
@@ -28,6 +29,7 @@ const caller = {
 describe('IssuesController', () => {
   let controller: IssuesController;
   let service: Record<string, ReturnType<typeof vi.fn>>;
+  let lifecycle: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
     service = {
@@ -36,10 +38,14 @@ describe('IssuesController', () => {
       findOne: vi.fn(),
       updateOwn: vi.fn(),
     };
+    lifecycle = { changeStatus: vi.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [IssuesController],
-      providers: [{ provide: IssuesService, useValue: service }],
+      providers: [
+        { provide: IssuesService, useValue: service },
+        { provide: IssueLifecycleService, useValue: lifecycle },
+      ],
     }).compile();
 
     controller = module.get<IssuesController>(IssuesController);
@@ -100,6 +106,19 @@ describe('IssuesController', () => {
       '507f1f77bcf86cd799439011',
       reporterId.toString(),
       { title: 'Corrected' },
+    );
+  });
+  it('routes a status change through the lifecycle service', async () => {
+    lifecycle.changeStatus.mockResolvedValue(issueDoc());
+
+    await controller.changeStatus('507f1f77bcf86cd799439011', {
+      status: IssueStatus.REJECTED,
+      reason: 'Out of scope',
+    });
+
+    expect(lifecycle.changeStatus).toHaveBeenCalledWith(
+      '507f1f77bcf86cd799439011',
+      { status: IssueStatus.REJECTED, reason: 'Out of scope' },
     );
   });
 });
