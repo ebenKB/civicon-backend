@@ -29,7 +29,53 @@
 
 ```bash
 $ npm install
+$ cp .env.example .env
 ```
+
+## Database
+
+MongoDB runs in Docker, pinned to the **8.0** long-term-support line. (8.1+ are
+"rapid releases" — supported only until the next rapid release, so not suitable
+for production.)
+
+```bash
+# start MongoDB in the background
+$ docker compose up -d
+
+# check it is healthy
+$ docker compose ps
+
+# open a shell against the database
+$ docker compose exec mongodb mongosh -u root -p example --authenticationDatabase admin civicon
+
+# stop it (data survives in the mongodb_data volume)
+$ docker compose down
+
+# stop it and wipe the data
+$ docker compose down -v
+```
+
+### Seeding sample data
+
+```bash
+# upsert the sample users (safe to re-run)
+$ npm run seed
+
+# wipe the users collection first, then seed
+$ npm run seed -- --fresh
+```
+
+Sample records live in [`src/seed.ts`](src/seed.ts).
+
+### Connection config
+
+The `MONGO_*` variables in `.env` are the single source of truth: docker-compose
+provisions the container with them, and the app composes its connection URI from
+the same values ([`src/config/database.config.ts`](src/config/database.config.ts)).
+Change a password or port once and both sides stay in sync.
+
+For hosted deployments where the provider issues a connection string as a whole
+(Atlas, replica sets), set `MONGODB_URI` — it overrides the parts.
 
 ## Compile and run the project
 
@@ -47,15 +93,26 @@ $ npm run start:prod
 ## Run tests
 
 ```bash
-# unit tests
+# unit tests — fully mocked, no database needed
 $ npm run test
 
-# e2e tests
+# e2e tests — REQUIRE a running MongoDB (docker compose up -d)
 $ npm run test:e2e
 
 # test coverage
 $ npm run test:cov
 ```
+
+The e2e suite talks to a real database and truncates collections between tests,
+so it runs against a **separate** database. `vitest.config.e2e.ts` redirects
+`MONGO_DATABASE` to `<db>_test` (e.g. `civicon_test`), leaving development data
+alone. As a backstop, the suite refuses to start if the connected database name
+does not end in `_test`.
+
+If you override the connection with a full `MONGODB_URI`, it is not rewritten —
+connection strings can carry multiple hosts and options that do not survive
+naive parsing. Set `MONGODB_URI_TEST` explicitly in that case; the suite fails
+with a clear message if you don't.
 
 ## Deployment
 
