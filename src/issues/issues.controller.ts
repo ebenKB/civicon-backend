@@ -20,6 +20,7 @@ import { CreateIssueDto } from './dto/create-issue.dto.js';
 import { ListIssuesQuery } from './dto/list-issues.query.js';
 import { UpdateIssueDto } from './dto/update-issue.dto.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
+import { IssueMediaService } from './issue-media.service.js';
 import { toPublicIssue } from './issue-response.js';
 import { IssuesService } from './issues.service.js';
 
@@ -28,6 +29,7 @@ export class IssuesController {
   constructor(
     private readonly issuesService: IssuesService,
     private readonly issueLifecycleService: IssueLifecycleService,
+    private readonly issueMediaService: IssueMediaService,
   ) {}
 
   @Post()
@@ -47,13 +49,20 @@ export class IssuesController {
   @Get()
   async findAll(@Query() query: ListIssuesQuery) {
     const issues = await this.issuesService.findAll(query);
-    return issues.map(toPublicIssue);
+    // One query for the whole page rather than one per issue.
+    const media = await this.issueMediaService.listForMany(
+      issues.map((issue) => issue._id.toString()),
+    );
+    return issues.map((issue) =>
+      toPublicIssue(issue, media.get(issue._id.toString()) ?? []),
+    );
   }
 
   @Public()
   @Get(':id')
   async findOne(@Param('id', ParseObjectIdPipe) id: string) {
-    return toPublicIssue(await this.issuesService.findOne(id));
+    const issue = await this.issuesService.findOne(id);
+    return toPublicIssue(issue, await this.issueMediaService.listFor(id));
   }
   // Authenticated but no @Roles(): ownership is the requirement, and the
   // service enforces it.

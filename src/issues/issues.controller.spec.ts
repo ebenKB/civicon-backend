@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
 import { IssueCategory, IssueStatus } from '../contracts/index.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
+import { IssueMediaService } from './issue-media.service.js';
 import { IssuesController } from './issues.controller.js';
 import { IssuesService } from './issues.service.js';
 
@@ -30,6 +31,7 @@ describe('IssuesController', () => {
   let controller: IssuesController;
   let service: Record<string, ReturnType<typeof vi.fn>>;
   let lifecycle: Record<string, ReturnType<typeof vi.fn>>;
+  let mediaService: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
     service = {
@@ -39,12 +41,16 @@ describe('IssuesController', () => {
       updateOwn: vi.fn(),
     };
     lifecycle = { changeStatus: vi.fn() };
+    mediaService = { listFor: vi.fn(), listForMany: vi.fn() };
+    mediaService.listFor.mockResolvedValue([]);
+    mediaService.listForMany.mockResolvedValue(new Map());
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [IssuesController],
       providers: [
         { provide: IssuesService, useValue: service },
         { provide: IssueLifecycleService, useValue: lifecycle },
+        { provide: IssueMediaService, useValue: mediaService },
       ],
     }).compile();
 
@@ -120,5 +126,13 @@ describe('IssuesController', () => {
       '507f1f77bcf86cd799439011',
       { status: IssueStatus.REJECTED, reason: 'Out of scope' },
     );
+  });
+  it('fetches media for a whole page in one query, not one per issue', async () => {
+    service.findAll.mockResolvedValue([issueDoc(), issueDoc()]);
+
+    await controller.findAll({});
+
+    expect(mediaService.listForMany).toHaveBeenCalledTimes(1);
+    expect(mediaService.listFor).not.toHaveBeenCalled();
   });
 });

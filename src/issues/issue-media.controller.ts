@@ -1,7 +1,9 @@
 import {
   BadRequestException,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Headers,
   HttpStatus,
   Param,
@@ -99,5 +101,13 @@ export class IssueMediaController {
     });
 
     media.stream.pipe(res);
+  }
+  @Delete('media/:mediaId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(
+    @Param('mediaId', ParseObjectIdPipe) mediaId: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.issueMediaService.remove(mediaId, user.id);
   }
 }

@@ -32,6 +32,7 @@ describe('toPublicIssue', () => {
       reportedBy: reporterId.toString(),
       statusReason: undefined,
       duplicateOf: undefined,
+      media: [],
       createdAt: new Date('2026-09-13T10:00:00Z'),
       updatedAt: new Date('2026-09-13T10:00:00Z'),
     });
@@ -63,5 +64,23 @@ describe('toPublicIssue', () => {
     const result = toPublicIssue(issueDoc({ internalNote: 'secret' }));
 
     expect(result).not.toHaveProperty('internalNote');
+  });
+  it('carries the media it is given', () => {
+    const media = [
+      {
+        id: 'abc',
+        filename: 'culvert.png',
+        contentType: 'image/png',
+        size: 10,
+        uploadedAt: new Date(),
+        url: '/issues/media/abc',
+      },
+    ];
+
+    expect(toPublicIssue(issueDoc(), media).media).toEqual(media);
+  });
+
+  it('defaults to an empty array rather than omitting the field', () => {
+    expect(toPublicIssue(issueDoc()).media).toEqual([]);
   });
 });

@@ -153,4 +153,14 @@ describe('IssueMediaController', () => {
       ).rejects.toThrow(/range/i);
     });
   });
+  it('passes the caller id to remove so ownership can be checked', async () => {
+    service.remove.mockResolvedValue(undefined);
+
+    await controller.remove('507f1f77bcf86cd799439033', caller);
+
+    expect(service.remove).toHaveBeenCalledWith(
+      '507f1f77bcf86cd799439033',
+      '507f1f77bcf86cd799439011',
+    );
+  });
 });

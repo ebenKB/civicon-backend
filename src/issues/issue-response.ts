@@ -1,4 +1,5 @@
 import { IssueCategory, IssueStatus } from '../contracts/index.js';
+import { PublicMedia } from './issue-media-response.js';
 import { IssueDocument } from './schemas/issue.schema.js';
 
 /**
@@ -15,11 +16,15 @@ export interface PublicIssue {
   reportedBy: string;
   statusReason?: string;
   duplicateOf?: string;
+  media: PublicMedia[];
   createdAt: Date;
   updatedAt: Date;
 }
 
-export function toPublicIssue(issue: IssueDocument): PublicIssue {
+export function toPublicIssue(
+  issue: IssueDocument,
+  media: PublicMedia[] = [],
+): PublicIssue {
   return {
     id: issue._id.toString(),
     title: issue.title,
@@ -30,6 +35,7 @@ export function toPublicIssue(issue: IssueDocument): PublicIssue {
     reportedBy: issue.reportedBy.toString(),
     statusReason: issue.statusReason,
     duplicateOf: issue.duplicateOf?.toString(),
+    media,
     createdAt: issue.createdAt,
     updatedAt: issue.updatedAt,
   };
