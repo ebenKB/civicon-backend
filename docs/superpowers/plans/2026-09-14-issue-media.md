@@ -15,6 +15,7 @@
 - **ESM codebase.** Every relative import carries a `.js` extension, even when importing a `.ts` file.
 - **A type used in a decorated signature needs `import type`** — `isolatedModules` and `emitDecoratorMetadata` are both on. This applies to `AuthenticatedUser`, and to `Response` from express.
 - **Mongoose 9 exports `QueryFilter`, not `FilterQuery`.**
+- **GridFS `contentType` lives in `metadata`.** The spec deprecated the top-level field and the bundled driver rejects it.
 - **`@Prop` on an enum property needs an explicit `type: String`** — TypeScript emits `Object` as its `design:type`.
 - **Reach driver classes through `mongoose.mongo`**, never by importing `mongodb` directly — it is a transitive dependency.
 - **Global pipe, filter and guards are already registered** in `AppModule`. Do not register more. `@Public()` opts a route out of auth; `@Roles()` requires a role.
@@ -448,17 +449,23 @@ export interface PublicMedia {
 export interface MediaFileDocument {
   _id: ObjectId;
   filename: string;
-  contentType?: string;
   length: number;
   uploadDate: Date;
-  metadata?: { issueId?: ObjectId; uploadedBy?: ObjectId };
+  // contentType sits in metadata, not at the top level: the GridFS spec
+  // deprecated the top-level field, and the bundled driver has dropped it from
+  // both GridFSBucketWriteStreamOptions and GridFSFile.
+  metadata?: {
+    issueId?: ObjectId;
+    uploadedBy?: ObjectId;
+    contentType?: string;
+  };
 }
 
 export function toPublicMedia(file: MediaFileDocument): PublicMedia {
   return {
     id: file._id.toString(),
     filename: file.filename,
-    contentType: file.contentType ?? 'application/octet-stream',
+    contentType: file.metadata?.contentType ?? 'application/octet-stream',
     size: file.length,
     uploadedAt: file.uploadDate,
     url: `/issues/media/${file._id.toString()}`,
@@ -777,10 +784,10 @@ export class IssueMediaService implements OnModuleInit {
     }
 
     const upload = this.bucket.openUploadStream(file.originalname, {
-      contentType: file.mimetype,
       metadata: {
         issueId: new Types.ObjectId(issueId),
         uploadedBy: new Types.ObjectId(actorId),
+        contentType: file.mimetype,
       },
     });
 
@@ -849,7 +856,7 @@ export class IssueMediaService implements OnModuleInit {
 
     return {
       stream,
-      contentType: file.contentType ?? 'application/octet-stream',
+      contentType: file.metadata?.contentType ?? 'application/octet-stream',
       size: file.length,
       range,
     };

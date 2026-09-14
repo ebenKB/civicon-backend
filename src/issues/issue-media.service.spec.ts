@@ -1,0 +1,208 @@
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+  PayloadTooLargeException,
+  UnsupportedMediaTypeException,
+} from '@nestjs/common';
+import { getConnectionToken } from '@nestjs/mongoose';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Types } from 'mongoose';
+import { IssueStatus } from '../contracts/index.js';
+import { IssueMediaService } from './issue-media.service.js';
+import { IssuesService } from './issues.service.js';
+
+const REPORTER = '507f1f77bcf86cd799439011';
+const STRANGER = '507f1f77bcf86cd799439099';
+const ISSUE_ID = '507f1f77bcf86cd799439022';
+
+const fileDoc = (overrides: Record<string, unknown> = {}) => ({
+  _id: new Types.ObjectId(),
+  filename: 'culvert.png',
+  length: 1234,
+  uploadDate: new Date('2026-09-14T10:00:00Z'),
+  metadata: {
+    issueId: new Types.ObjectId(ISSUE_ID),
+    uploadedBy: new Types.ObjectId(REPORTER),
+    contentType: 'image/png',
+  },
+  ...overrides,
+});
+
+const anImage = (size = 1024) => ({
+  originalname: 'culvert.png',
+  mimetype: 'image/png',
+  size,
+  buffer: Buffer.alloc(0),
+});
+
+describe('IssueMediaService', () => {
+  let service: IssueMediaService;
+  let issuesService: { findOne: ReturnType<typeof vi.fn> };
+  let bucket: {
+    find: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+    openUploadStream: ReturnType<typeof vi.fn>;
+  };
+
+  /** GridFSBucket.find returns a cursor; only toArray is used here. */
+  const cursorOf = (docs: unknown[]) => ({
+    toArray: () => Promise.resolve(docs),
+  });
+
+  beforeEach(async () => {
+    issuesService = { findOne: vi.fn() };
+    bucket = { find: vi.fn(), delete: vi.fn(), openUploadStream: vi.fn() };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        IssueMediaService,
+        { provide: IssuesService, useValue: issuesService },
+        {
+          provide: getConnectionToken(),
+          useValue: { db: { collection: () => ({ createIndex: vi.fn() }) } },
+        },
+      ],
+    }).compile();
+
+    service = module.get<IssueMediaService>(IssueMediaService);
+    // Replace the bucket built in the constructor with the double.
+    (service as unknown as { bucket: unknown }).bucket = bucket;
+  });
+
+  const openIssue = () => ({
+    _id: new Types.ObjectId(ISSUE_ID),
+    reportedBy: new Types.ObjectId(REPORTER),
+    status: IssueStatus.OPEN,
+  });
+
+  describe('upload guards', () => {
+    it('refuses a caller who is not the reporter', async () => {
+      issuesService.findOne.mockResolvedValue(openIssue());
+
+      await expect(
+        service.upload(ISSUE_ID, STRANGER, anImage()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('refuses an issue that has left OPEN', async () => {
+      issuesService.findOne.mockResolvedValue({
+        ...openIssue(),
+        status: IssueStatus.REJECTED,
+      });
+
+      await expect(
+        service.upload(ISSUE_ID, REPORTER, anImage()),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('refuses a disallowed type with 415', async () => {
+      issuesService.findOne.mockResolvedValue(openIssue());
+      bucket.find.mockReturnValue(cursorOf([]));
+
+      await expect(
+        service.upload(ISSUE_ID, REPORTER, {
+          ...anImage(),
+          mimetype: 'application/pdf',
+        }),
+      ).rejects.toBeInstanceOf(UnsupportedMediaTypeException);
+    });
+
+    it('refuses an oversize image with 413', async () => {
+      issuesService.findOne.mockResolvedValue(openIssue());
+      bucket.find.mockReturnValue(cursorOf([]));
+
+      await expect(
+        service.upload(ISSUE_ID, REPORTER, anImage(6 * 1024 * 1024)),
+      ).rejects.toBeInstanceOf(PayloadTooLargeException);
+    });
+
+    it('refuses the sixth file on an issue', async () => {
+      issuesService.findOne.mockResolvedValue(openIssue());
+      bucket.find.mockReturnValue(
+        cursorOf([1, 2, 3, 4, 5].map(() => fileDoc())),
+      );
+
+      await expect(
+        service.upload(ISSUE_ID, REPORTER, anImage()),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('listFor', () => {
+    it('queries by the issue id held in file metadata', async () => {
+      bucket.find.mockReturnValue(cursorOf([fileDoc()]));
+
+      const result = await service.listFor(ISSUE_ID);
+
+      const [filter] = bucket.find.mock.calls[0];
+      expect(filter['metadata.issueId'].toString()).toBe(ISSUE_ID);
+      expect(result[0].url).toBe(`/issues/media/${result[0].id}`);
+    });
+  });
+
+  describe('listForMany', () => {
+    it('fetches every issue in one query and groups the result', async () => {
+      const other = new Types.ObjectId();
+      bucket.find.mockReturnValue(
+        cursorOf([
+          fileDoc(),
+          fileDoc({ metadata: { issueId: other, uploadedBy: other } }),
+        ]),
+      );
+
+      const grouped = await service.listForMany([ISSUE_ID, other.toString()]);
+
+      expect(bucket.find).toHaveBeenCalledTimes(1);
+      expect(grouped.get(ISSUE_ID)).toHaveLength(1);
+      expect(grouped.get(other.toString())).toHaveLength(1);
+    });
+
+    it('does not query at all for an empty page', async () => {
+      const grouped = await service.listForMany([]);
+
+      expect(bucket.find).not.toHaveBeenCalled();
+      expect(grouped.size).toBe(0);
+    });
+  });
+
+  describe('remove', () => {
+    it('refuses a caller who is not the reporter', async () => {
+      bucket.find.mockReturnValue(cursorOf([fileDoc()]));
+      issuesService.findOne.mockResolvedValue(openIssue());
+
+      await expect(
+        service.remove(new Types.ObjectId().toString(), STRANGER),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(bucket.delete).not.toHaveBeenCalled();
+    });
+
+    it('deletes the file and its chunks for the reporter', async () => {
+      const doc = fileDoc();
+      bucket.find.mockReturnValue(cursorOf([doc]));
+      issuesService.findOne.mockResolvedValue(openIssue());
+
+      await service.remove(doc._id.toString(), REPORTER);
+
+      expect(bucket.delete).toHaveBeenCalledWith(doc._id);
+    });
+
+    it('throws NotFoundException for an unknown media id', async () => {
+      bucket.find.mockReturnValue(cursorOf([]));
+
+      await expect(
+        service.remove(new Types.ObjectId().toString(), REPORTER),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe('openDownload', () => {
+    it('throws NotFoundException for an unknown media id', async () => {
+      bucket.find.mockReturnValue(cursorOf([]));
+
+      await expect(
+        service.openDownload(new Types.ObjectId().toString()),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+});

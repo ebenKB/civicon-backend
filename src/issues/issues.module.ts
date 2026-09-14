@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
+import { IssueMediaService } from './issue-media.service.js';
 import { IssuesController } from './issues.controller.js';
 import { IssuesService } from './issues.service.js';
 import { Issue, IssueSchema } from './schemas/issue.schema.js';
@@ -10,8 +11,8 @@ import { Issue, IssueSchema } from './schemas/issue.schema.js';
     MongooseModule.forFeature([{ name: Issue.name, schema: IssueSchema }]),
   ],
   controllers: [IssuesController],
-  providers: [IssuesService, IssueLifecycleService],
+  providers: [IssuesService, IssueLifecycleService, IssueMediaService],
   // Exported so later slices (claiming, points) can inject it.
-  exports: [IssuesService, IssueLifecycleService],
+  exports: [IssuesService, IssueLifecycleService, IssueMediaService],
 })
 export class IssuesModule {}
