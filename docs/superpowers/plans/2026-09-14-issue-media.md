@@ -17,6 +17,7 @@
 - **Mongoose 9 exports `QueryFilter`, not `FilterQuery`.**
 - **GridFS `contentType` lives in `metadata`.** The spec deprecated the top-level field and the bundled driver rejects it.
 - **`@Prop` on an enum property needs an explicit `type: String`** — TypeScript emits `Object` as its `design:type`.
+- **Import mongoose's `Connection` with `import type`.** mongoose is CommonJS; Node's ESM interop cannot extract it as a named export at runtime, and the failure appears only when the app boots.
 - **Reach driver classes through `mongoose.mongo`**, never by importing `mongodb` directly — it is a transitive dependency.
 - **Global pipe, filter and guards are already registered** in `AppModule`. Do not register more. `@Public()` opts a route out of auth; `@Roles()` requires a role.
 - **One new devDependency, `@types/multer`.** Nothing else.
@@ -706,7 +707,10 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
-import mongoose, { Connection, Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
+// `import type`: mongoose is CommonJS, and Node's ESM interop cannot extract
+// Connection as a named export at runtime. It is only ever a type here.
+import type { Connection } from 'mongoose';
 import { ByteRange } from '../common/http/byte-range.js';
 import {
   checkUpload,
@@ -1018,10 +1022,12 @@ describe('IssueMediaController', () => {
     );
   });
 
-  it('rejects a request carrying no file', async () => {
-    await expect(
+  // The guard throws synchronously, before any promise is returned, so this
+  // assertion must be synchronous too.
+  it('rejects a request carrying no file', () => {
+    expect(() =>
       controller.upload(ISSUE_ID, caller, undefined as never),
-    ).rejects.toThrow(/file/i);
+    ).toThrow(/file/i);
   });
 
   it('delegates the metadata listing', async () => {
@@ -1061,7 +1067,7 @@ import type { AuthenticatedUser } from '../auth/types/jwt-payload.js';
 import { ParseObjectIdPipe } from '../common/pipes/parse-object-id.pipe.js';
 import { MAX_UPLOAD_BYTES } from '../contracts/index.js';
 import { IssueMediaService } from './issue-media.service.js';
-import { UploadedFile } from './issue-media.types.js';
+import type { UploadedFile } from './issue-media.types.js';
 
 @Controller('issues')
 export class IssueMediaController {

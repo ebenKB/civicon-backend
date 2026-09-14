@@ -8,7 +8,11 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { InjectConnection } from '@nestjs/mongoose';
-import mongoose, { Connection, Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
+// `import type`: mongoose is CommonJS, and Node's ESM interop cannot extract
+// Connection as a named export at runtime. It is only ever a type here, so
+// erasing it at compile time is both correct and necessary.
+import type { Connection } from 'mongoose';
 import { ByteRange } from '../common/http/byte-range.js';
 import {
   checkUpload,
