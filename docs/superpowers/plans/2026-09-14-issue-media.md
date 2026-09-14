@@ -1183,16 +1183,23 @@ git commit -m "Add issue media upload and listing endpoints"
 - [ ] **Step 1: Write the failing test**
 
 Append to `src/issues/issue-media.controller.spec.ts`, inside the outer
-`describe`. Add `import { Readable } from 'node:stream';` at the top.
+`describe`. Add `import { Readable, Writable } from 'node:stream';` at the top.
 
 ```ts
   describe('download', () => {
+    // A real Writable, because the route pipes into it: a plain object double
+    // fails with "dest.on is not a function".
     const responseDouble = () => {
-      const res = {
-        status: vi.fn(() => res),
-        set: vi.fn(() => res),
-        headers: {} as Record<string, string>,
+      const res = new Writable({
+        write(_chunk, _encoding, callback) {
+          callback();
+        },
+      }) as Writable & {
+        status: ReturnType<typeof vi.fn>;
+        set: ReturnType<typeof vi.fn>;
       };
+      res.status = vi.fn(() => res);
+      res.set = vi.fn(() => res);
       return res;
     };
 
@@ -1267,8 +1274,8 @@ Expected: FAIL — `controller.download is not a function`.
 - [ ] **Step 3: Write the route**
 
 In `src/issues/issue-media.controller.ts`, widen the `@nestjs/common` import
-with `Headers`, `HttpStatus`, `Res` and `RequestedRangeNotSatisfiableException`,
-and add:
+with `Headers`, `HttpStatus`, `Res` and `HttpException` — Nest ships no 416
+exception class, only the status constant — and add:
 
 ```ts
 import { parseByteRange } from '../common/http/byte-range.js';
@@ -1297,8 +1304,10 @@ Then the route:
     const requested = parseByteRange(headers.range, whole.size);
 
     if (requested === 'unsatisfiable') {
-      throw new RequestedRangeNotSatisfiableException(
+      // Nest ships no 416 exception class, only the status constant.
+      throw new HttpException(
         `Range is not satisfiable for a file of ${whole.size} bytes`,
+        HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE,
       );
     }
 
