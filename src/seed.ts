@@ -1,12 +1,24 @@
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
-import { getModelToken } from '@nestjs/mongoose';
+import { getConnectionToken, getModelToken } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import type { Connection } from 'mongoose';
 import { AppModule } from './app.module.js';
 import { PasswordService } from './auth/password.service.js';
-import { IssueCategory, Role } from './contracts/index.js';
+import { IssueCategory, MEDIA_BUCKET, Role } from './contracts/index.js';
 import { Issue, IssueDocument } from './issues/schemas/issue.schema.js';
+import { IssueMediaService } from './issues/issue-media.service.js';
 import { User, UserDocument } from './users/schemas/user.schema.js';
+
+/**
+ * A 1x1 PNG, inlined so the seed needs no fixture on disk. Attached to the
+ * first seeded issue so the media read endpoints — and the Postman collection
+ * that exercises them — have something real to fetch without a manual upload.
+ */
+const SAMPLE_IMAGE = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
 
 /** Shared by every seeded account. Documented in the README. */
 const DEMO_PASSWORD = 'Password123!';
@@ -143,6 +155,14 @@ async function seed() {
     if (process.argv.includes('--fresh')) {
       const { deletedCount } = await issueModel.deleteMany({});
       report(`--fresh: removed ${deletedCount} existing issue(s)`);
+
+      // Media belongs to issues, so it goes with them. Dropping the bucket
+      // collections is the only way to clear GridFS wholesale.
+      const db = app.get<Connection>(getConnectionToken()).db;
+      for (const name of [`${MEDIA_BUCKET}.files`, `${MEDIA_BUCKET}.chunks`]) {
+        await db?.collection(name).deleteMany({});
+      }
+      report('--fresh: removed existing issue media');
     }
 
     // Reporter emails resolve to ids here rather than being hard-coded, so the
@@ -180,6 +200,32 @@ async function seed() {
     report(
       `issues inserted: ${issueResult.upsertedCount}, updated: ${issueResult.modifiedCount}`,
     );
+    // Attach a sample photo to the first seeded issue, unless it already has
+    // one — re-running the seed must not accumulate files.
+    const mediaService = app.get(IssueMediaService);
+    const [firstIssue] = await issueModel
+      .find({ title: SAMPLE_ISSUES[0].title })
+      .exec();
+
+    if (firstIssue) {
+      const already = await mediaService.listFor(firstIssue._id.toString());
+      if (already.length === 0) {
+        await mediaService.upload(
+          firstIssue._id.toString(),
+          firstIssue.reportedBy.toString(),
+          {
+            originalname: 'culvert.png',
+            mimetype: 'image/png',
+            size: SAMPLE_IMAGE.length,
+            buffer: SAMPLE_IMAGE,
+          },
+        );
+        report('attached a sample photo to the first issue');
+      } else {
+        report(`first issue already carries ${already.length} file(s)`);
+      }
+    }
+
     report(`every seeded account uses the password: ${DEMO_PASSWORD}`);
   } finally {
     await app.close();

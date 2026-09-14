@@ -215,6 +215,35 @@ curl -s -X POST localhost:9000/issues -H "Authorization: Bearer $TOKEN" \
   -d '{"title":"Blocked drain","description":"Standing water.","category":"DRAINAGE","location":"Market Street"}'
 ```
 
+### Media
+
+A reporter can attach photographs and short video to their own issue while it is
+still `OPEN`. Anyone can view them — the bytes are public, so a plain `<img>` or
+`<video src>` works with no token.
+
+| Route | Access |
+|---|---|
+| `POST /issues/:id/media` | the reporter, while `OPEN` — multipart, field `file` |
+| `GET /issues/:id/media` | public — metadata only |
+| `GET /issues/media/:mediaId` | public — the bytes, with `Range` support |
+| `DELETE /issues/media/:mediaId` | the reporter, while `OPEN` |
+
+Limits, all defined in [`src/contracts/issue-media.ts`](src/contracts/issue-media.ts):
+5 files per issue; images up to 5MB (`jpeg`, `png`, `webp`); video up to 50MB
+(`mp4`, `webm`). A disallowed type is 415, an oversize file 413, a sixth file 409.
+
+Bytes live in a GridFS bucket in the same MongoDB — a 50MB video cannot be a
+document field, since that exceeds the 16MB BSON limit. Range requests are
+honoured, so a browser can seek in a video rather than download it whole.
+`IssueMediaService` is the only file that knows any of this, which is what keeps
+a move to object storage a one-file change.
+
+```bash
+curl -X POST localhost:9000/issues/$ISSUE_ID/media \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "file=@culvert.jpg;type=image/jpeg"
+```
+
 ## Run tests
 
 ```bash
