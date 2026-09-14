@@ -26,12 +26,15 @@ function testEnv(): Record<string, string> {
           'whose name ends in "_test".',
       );
     }
-    return { MONGODB_URI: process.env.MONGODB_URI_TEST };
+    return { MONGODB_URI: process.env.MONGODB_URI_TEST, BCRYPT_COST: '4' };
   }
 
   const database = process.env.MONGO_DATABASE ?? 'civicon';
   return {
     MONGO_DATABASE: database.endsWith('_test') ? database : `${database}_test`,
+    // See vitest.config.ts: the production cost factor makes these suites
+    // several times slower without proving anything extra.
+    BCRYPT_COST: '4',
   };
 }
 
@@ -44,12 +47,9 @@ export default defineConfig({
     // These specs share one database and truncate collections between tests,
     // so they must not run concurrently.
     fileParallelism: false,
-    // Each beforeEach registers and logs in two accounts — four bcrypt
-    // operations at cost factor 12, measured at ~700ms each, so roughly three
-    // seconds of pure CPU before a single assertion runs. Vitest's 10s default
-    // leaves little headroom, and when the machine is busy the resulting
-    // failures read as database faults (connection pool cleared, hook timed
-    // out) rather than as the scheduling problem they are.
+    // Registering and logging in the suites' actors is the slowest thing these
+    // tests do. BCRYPT_COST below removes most of that cost; the timeouts stay
+    // generous because these suites also wait on a real database.
     hookTimeout: 60_000,
     testTimeout: 60_000,
     env: testEnv(),

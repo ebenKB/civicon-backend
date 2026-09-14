@@ -9,10 +9,12 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['**/*.spec.ts'],
-    // PasswordService exercises bcrypt at cost factor 12, measured at ~1.2s per
-    // operation. Under parallel load those specs exceed vitest's 5s default and
-    // fail intermittently — a scheduling problem that reads as a logic bug.
-    testTimeout: 30_000,
-    hookTimeout: 30_000,
+    env: {
+      // bcrypt at the production cost of 12 is ~1.2s per call on a laptop,
+      // which made the auth specs exceed vitest's default timeout under
+      // parallel load. The cost is encoded in each hash, so lowering it here
+      // changes only how long the tests take, never what they prove.
+      BCRYPT_COST: '4',
+    },
   },
 });
