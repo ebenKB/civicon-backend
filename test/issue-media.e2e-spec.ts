@@ -55,10 +55,12 @@ describe('IssueMedia (e2e)', () => {
     await app.init();
 
     connection = moduleFixture.get<Connection>(getConnectionToken());
-    if (!connection.name.endsWith('_test')) {
+    // The name carries a per-run and per-worker suffix, so match on the
+    // marker rather than the end of the string.
+    if (!connection.name.includes('_test')) {
       throw new Error(
         `Refusing to run destructive e2e tests against database "${connection.name}" ` +
-          `— expected a database ending in "_test".`,
+          `— expected a database whose name contains "_test".`,
       );
     }
 
