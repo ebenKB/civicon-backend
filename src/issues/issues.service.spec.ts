@@ -6,7 +6,7 @@ import {
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { IssueCategory, IssueStatus } from '../contracts/index.js';
+import { AiOutcome, IssueCategory, IssueStatus } from '../contracts/index.js';
 import { IssuesService } from './issues.service.js';
 import { Issue } from './schemas/issue.schema.js';
 
@@ -113,6 +113,15 @@ describe('IssuesService', () => {
 
       const [filter] = model.find.mock.calls[0];
       expect(filter.volunteerId).toBeInstanceOf(Types.ObjectId);
+    });
+
+    it('filters by assessment outcome for the agency queue', async () => {
+      model.find.mockReturnValue(chainOf([]));
+
+      await service.findAll({ aiOutcome: AiOutcome.BELOW_THRESHOLD });
+
+      const [filter] = model.find.mock.calls[0];
+      expect(filter['aiAssessment.outcome']).toBe(AiOutcome.BELOW_THRESHOLD);
     });
 
     it('sorts newest first and applies the default paging window', async () => {

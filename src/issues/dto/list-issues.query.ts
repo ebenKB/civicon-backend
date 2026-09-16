@@ -7,7 +7,11 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { IssueCategory, IssueStatus } from '../../contracts/index.js';
+import {
+  AiOutcome,
+  IssueCategory,
+  IssueStatus,
+} from '../../contracts/index.js';
 
 export class ListIssuesQuery {
   @IsOptional()
@@ -25,6 +29,11 @@ export class ListIssuesQuery {
   @IsOptional()
   @IsMongoId()
   volunteerId?: string;
+
+  /** The agency's review queue: anything not APPROVED needs a human. */
+  @IsOptional()
+  @IsEnum(AiOutcome)
+  aiOutcome?: AiOutcome;
 
   // Query parameters arrive as strings and enableImplicitConversion is off, so
   // @Type is what makes @IsInt meaningful here.

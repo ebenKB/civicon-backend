@@ -47,6 +47,9 @@ export class IssuesService {
     if (query.volunteerId) {
       filter.volunteerId = new Types.ObjectId(query.volunteerId);
     }
+    if (query.aiOutcome) {
+      filter['aiAssessment.outcome'] = query.aiOutcome;
+    }
 
     return this.issueModel
       .find(filter)
