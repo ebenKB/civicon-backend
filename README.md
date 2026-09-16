@@ -215,6 +215,42 @@ curl -s -X POST localhost:9000/issues -H "Authorization: Bearer $TOKEN" \
   -d '{"title":"Blocked drain","description":"Standing water.","category":"DRAINAGE","location":"Market Street"}'
 ```
 
+### Claiming and resolving
+
+A citizen other than the reporter takes an issue on, does the work, submits
+evidence, and an agency confirms it.
+
+| Route | Access |
+|---|---|
+| `POST /issues/:id/claim` | any `CITIZEN` except the reporter |
+| `DELETE /issues/:id/claim` | the holder — returns it to `OPEN` |
+| `POST /issues/:id/start` | the holder — `CLAIMED` to `IN_PROGRESS` |
+| `POST /issues/:id/resolution` | the holder — needs a note and at least one proof photo |
+| `PATCH /issues/:id/status` | `AGENCY`/`ADMIN` — verify, send back, or force-release |
+
+```
+OPEN ──claim──▶ CLAIMED ──start──▶ IN_PROGRESS ──resolve──▶ RESOLVED ──verify──▶ VERIFIED
+  ▲                │                     │                      │
+  └────── release / force-release ───────┘         send back ───┘
+```
+
+`IN_PROGRESS` is optional — a volunteer may resolve straight from `CLAIMED`.
+
+**A reporter cannot claim their own issue** (403). That is the anti-self-dealing
+rule: once civic points exist, reporting and resolving the same issue would be a
+way to pay yourself.
+
+Photos carry a `purpose` derived from the issue's state, never from the request:
+uploaded while `OPEN` they are `REPORT`, uploaded by the holder they are
+`PROOF`. A resolution counts only proof uploaded by the **current** holder, so
+evidence left behind by a volunteer who released the claim does not count.
+
+An agency cannot set `RESOLVED` directly — that would walk around the evidence
+requirement — nor `CLAIMED`, which needs a volunteer the route cannot name.
+Both return 403 rather than 409: the move is legal, just not for that actor.
+
+`GET /issues?volunteerId=<id>` lists what someone is working on.
+
 ### Media
 
 A reporter can attach photographs and short video to their own issue while it is

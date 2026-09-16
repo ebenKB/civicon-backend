@@ -5,8 +5,14 @@ import { Model } from 'mongoose';
 import type { Connection } from 'mongoose';
 import { AppModule } from './app.module.js';
 import { PasswordService } from './auth/password.service.js';
-import { IssueCategory, MEDIA_BUCKET, Role } from './contracts/index.js';
+import {
+  IssueCategory,
+  IssueStatus,
+  MEDIA_BUCKET,
+  Role,
+} from './contracts/index.js';
 import { Issue, IssueDocument } from './issues/schemas/issue.schema.js';
+import { IssueLifecycleService } from './issues/issue-lifecycle.service.js';
 import { IssueMediaService } from './issues/issue-media.service.js';
 import { User, UserDocument } from './users/schemas/user.schema.js';
 
@@ -224,6 +230,23 @@ async function seed() {
       } else {
         report(`first issue already carries ${already.length} file(s)`);
       }
+    }
+
+    // Put one issue in CLAIMED so the demo opens mid-arc rather than with
+    // everything untouched. Goes through the lifecycle service rather than
+    // writing status directly — that invariant holds in the seed too.
+    //
+    // The pothole is reported by volunteer@civicon.test, so the citizen claims
+    // it: claiming your own report is refused, which is the point of the rule.
+    const lifecycle = app.get(IssueLifecycleService);
+    const [toClaim] = await issueModel
+      .find({ title: SAMPLE_ISSUES[2].title })
+      .exec();
+    const claimer = usersByEmail.get('citizen@civicon.test');
+
+    if (toClaim && claimer && toClaim.status === IssueStatus.OPEN) {
+      await lifecycle.claim(toClaim._id.toString(), claimer.toString());
+      report(`claimed "${toClaim.title}" for citizen@civicon.test`);
     }
 
     report(`every seeded account uses the password: ${DEMO_PASSWORD}`);

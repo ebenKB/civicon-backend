@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Civicon — Auth, Issues & Media",
+    "name": "Civicon — Auth, Issues, Media & Lifecycle",
     "description": "Auth, identity and civic issue reporting for the Civicon backend.\n\nStart the API with `npm run start:dev` and seed it with `npm run seed` — every seeded account uses the password in {{demo_password}}.\n\nFolders run top to bottom: later requests reuse tokens and ids that earlier ones set.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -89,6 +89,21 @@
       "key": "media_issue_id",
       "value": "",
       "description": "Set by 'Find the seeded photo'."
+    },
+    {
+      "key": "volunteer_token",
+      "value": "",
+      "description": "Set by 'Sign in as the volunteer'."
+    },
+    {
+      "key": "citizen_user_id",
+      "value": "",
+      "description": "Set by 'Sign in as the reporter'."
+    },
+    {
+      "key": "lifecycle_issue_id",
+      "value": "",
+      "description": "Set by 'Find an open issue the reporter owns'."
     }
   ],
   "item": [
@@ -329,7 +344,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWE3ZDJiYjg4Y2QyODE0NjQwODFjNGMiLCJlbWFpbCI6ImFkYS01OWJlYjI5Ny1iYjNhLTQwYWEtYWY5My00ZTFhY2ZiNmVkY2JAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJDSVRJWkVOIl0sImlhdCI6MTc4OTM4MzM1NSwiZXhwIjoxNzg5OTg4MTU1fQ.SdQs1o4zJ5hQhLx_Nfr5Iw_ypE50FmstK9AM7auV7L4\",\"user\":{\"id\":\"6aa7d2bb88cd281464081c4c\",\"name\":\"Ada Lovelace\",\"email\":\"ada-59beb297-bb3a-40aa-af93-4e1acfb6edcb@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
+              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWFhOGE2ZDI2ZDM1ZmM1MGYwMTJmZTMiLCJlbWFpbCI6ImFkYS01Zjc1YmRmMC02YTBiLTQzYTMtOTdmOC0zZmIyMWY5MzJlYzNAZXhhbXBsZS5jb20iLCJyb2xlcyI6WyJDSVRJWkVOIl0sImlhdCI6MTc4OTU2MTQ1MywiZXhwIjoxNzkwMTY2MjUzfQ.CSexVgQmANIcks-QRgQ4pce7ERHvWWVKuYy2t3bEKgA\",\"user\":{\"id\":\"6aaa8a6d26d35fc50f012fe3\",\"name\":\"Ada Lovelace\",\"email\":\"ada-5f75bdf0-6a0b-43a3-97f8-3fb21f932ec3@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
             }
           ]
         },
@@ -432,7 +447,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWE3ZDIwNzM5NTBiZWY5NzcyZjIxZGUiLCJlbWFpbCI6InZvbHVudGVlckBjaXZpY29uLnRlc3QiLCJyb2xlcyI6WyJDSVRJWkVOIl0sImlhdCI6MTc4OTM4MzM1NiwiZXhwIjoxNzg5OTg4MTU2fQ.yL1CZ1XJKznFJEUHdmuRBU36FavQ51mJAheUn93opUA\",\"user\":{\"id\":\"6aa7d2073950bef9772f21de\",\"name\":\"Kofi Volunteer\",\"email\":\"volunteer@civicon.test\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
+              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWFhOGE2YzM5NTBiZWY5NzcyZjIyMjAiLCJlbWFpbCI6InZvbHVudGVlckBjaXZpY29uLnRlc3QiLCJyb2xlcyI6WyJDSVRJWkVOIl0sImlhdCI6MTc4OTU2MTQ1NCwiZXhwIjoxNzkwMTY2MjU0fQ.RqmyUAS2iufRjRnrXw3lZhcj4hrqN4kAtLQSO7lsZZI\",\"user\":{\"id\":\"6aaa8a6c3950bef9772f2220\",\"name\":\"Kofi Volunteer\",\"email\":\"volunteer@civicon.test\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
             }
           ]
         },
@@ -495,7 +510,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"id\":\"6aa7d2073950bef9772f21de\",\"name\":\"Kofi Volunteer\",\"email\":\"volunteer@civicon.test\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}"
+              "body": "{\"id\":\"6aaa8a6c3950bef9772f2220\",\"name\":\"Kofi Volunteer\",\"email\":\"volunteer@civicon.test\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}"
             }
           ]
         }
@@ -599,7 +614,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWE3ZDIwNzM5NTBiZWY5NzcyZjIxZTEiLCJlbWFpbCI6ImFkbWluQGNpdmljb24udGVzdCIsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc4OTM4MzM1NywiZXhwIjoxNzg5OTg4MTU3fQ.Nk7S4GLpqZqlzVUQyluMrYWy2NrwUM-4GtEfmwgBJUc\",\"user\":{\"id\":\"6aa7d2073950bef9772f21e1\",\"name\":\"Platform Admin\",\"email\":\"admin@civicon.test\",\"roles\":[\"ADMIN\"],\"civicPointsCached\":0,\"reputation\":100}}"
+              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWFhOGE2YzM5NTBiZWY5NzcyZjIyMjMiLCJlbWFpbCI6ImFkbWluQGNpdmljb24udGVzdCIsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc4OTU2MTQ1NSwiZXhwIjoxNzkwMTY2MjU1fQ.zzI3bYSyYVdDw3NHLmbNLM2jnfr2lKUQXZcjrhhoGcU\",\"user\":{\"id\":\"6aaa8a6c3950bef9772f2223\",\"name\":\"Platform Admin\",\"email\":\"admin@civicon.test\",\"roles\":[\"ADMIN\"],\"civicPointsCached\":0,\"reputation\":100}}"
             }
           ]
         },
@@ -695,7 +710,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWE3ZDJiZTg4Y2QyODE0NjQwODFjNGQiLCJlbWFpbCI6ImRpc3Bvc2FibGUtMTg4YzVkY2UtMmY5Mi00ODdhLThiYmUtMDQzYmZmYTE0OTQ4QGV4YW1wbGUuY29tIiwicm9sZXMiOlsiQ0lUSVpFTiJdLCJpYXQiOjE3ODkzODMzNTgsImV4cCI6MTc4OTk4ODE1OH0.hgi93ELjzIMPM80knPuEOjHcVPksgClaGVaE0B2jhaM\",\"user\":{\"id\":\"6aa7d2be88cd281464081c4d\",\"name\":\"Disposable\",\"email\":\"disposable-188c5dce-2f92-487a-8bbe-043bffa14948@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
+              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWFhOGE3MDI2ZDM1ZmM1MGYwMTJmZTQiLCJlbWFpbCI6ImRpc3Bvc2FibGUtYmRhNjk4NTMtYjQwMi00YWFiLTkxMmEtMWNhODQyNTU4ZWZjQGV4YW1wbGUuY29tIiwicm9sZXMiOlsiQ0lUSVpFTiJdLCJpYXQiOjE3ODk1NjE0NTYsImV4cCI6MTc5MDE2NjI1Nn0.7sdL8gyQKGN6XkSrcMyYMibLP4CXKzZZ9Ea1z3oXNaE\",\"user\":{\"id\":\"6aaa8a7026d35fc50f012fe4\",\"name\":\"Disposable\",\"email\":\"disposable-bda69853-b402-4aab-912a-1ca842558efc@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
             }
           ]
         },
@@ -776,7 +791,7 @@
                 }
               ],
               "cookie": [],
-              "body": "[{\"email\":\"citizen@civicon.test\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-14T10:52:55.657Z\",\"isActive\":true,\"name\":\"Ama Citizen\",\"reputation\":100,\"roles\":[\"CITIZEN\"],\"updatedAt\":\"2026-09-14T10:55:54.879Z\",\"id\":\"6aa7d2073950bef9772f21dd\"},{\"email\":\"volunteer@civicon.test\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-14T10:52:55.657Z\",\"isActive\":true,\"name\":\"Kofi Volunteer\",\"reputation\":100,\"roles\":[\"CITIZEN\"],\"updatedAt\":\"2026-09-14T10:55:54.879Z\",\"id\":\"6aa7d2073950bef9772f21de\"},{\"email\":\"agency@civicon.test\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-14T10:52:55.657Z\",\"isActive\":true,\"name\":\"Sanitation Officer\",\"reputation\":100,\"roles\":[\"AGENCY\"],\"updatedAt\":\"2026-09-14T10:55:54.879Z\",\"id\":\"6aa7d2073950bef9772f21df\"},{\"email\":\"sponsor@civicon.test\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-14T10:52:55.657Z\",\"isActive\":true,\"name\":\"Akwaaba Foundation\",\"reputation\":100,\"roles\":[\"SPONSOR\"],\"updatedAt\":\"2026-09-14T10:55:54.879Z\",\"id\":\"6aa7d2073950bef9772f21e0\"},{\"email\":\"admin@civicon.test\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-14T10:52:55.657Z\",\"isActive\":true,\"name\":\"Platform Admin\",\"reputation\":100,\"roles\":[\"ADMIN\"],\"updatedAt\":\"2026-09-14T10:55:54.879Z\",\"id\":\"6aa7d2073950bef9772f21e1\"},{\"email\":\"ada@example.com\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-14T10:52:55.657Z\",\"isActive\":true,\"name\":\"Ada Lovelace\",\"reputation\":100,\"roles\":[\"CITIZEN\"],\"updatedAt\":\"2026-09-14T10:55:54.879Z\",\"id\":\"6aa7d2073950bef9772f21e2\"},{\"email\":\"jane@example.com\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-14T10:52:55.657Z\",\"isActive\":false,\"name\":\"Jane Jacobs\",\"reputation\":100,\"roles\":[\"CITIZEN\"],\"updatedAt\":\"2026-09-14T10:55:54.879Z\",\"id\":\"6aa7d2073950bef9772f21e3\"},{\"name\":\"Ada Lovelace\",\"email\":\"ada-7f0ca3de-67ce-4c3d-8350-40d89afea83d@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-14T10:54:05.384Z\",\"updatedAt\":\"2026-09-14T10:54:05.384Z\",\"id\":\"6aa7d24d88cd281464081c3d\"},{\"name\":\"Ada Lovelace\",\"email\":\"ada-8698d2ce-472f-4945-ad4b-3645bd0aa695@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-14T10:54:42.123Z\",\"updatedAt\":\"2026-09-14T10:54:42.123Z\",\"id\":\"6aa7d27288cd281464081c42\"},{\"name\":\"Ada Lovelace\",\"email\":\"ada-d3d2ce6f-87c8-4c05-8d00-4fe4f1125c79@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-14T10:55:20.988Z\",\"updatedAt\":\"2026-09-14T10:55:20.988Z\",\"id\":\"6aa7d29888cd281464081c47\"},{\"name\":\"Ada Lovelace\",\"email\":\"ada-59beb297-bb3a-40aa-af93-4e1acfb6edcb@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-14T10:55:55.980Z\",\"updatedAt\":\"2026-09-14T10:55:55.980Z\",\"id\":\"6aa7d2bb88cd281464081c4c\"},{\"name\":\"Disposable\",\"email\":\"disposable-188c5dce-2f92-487a-8bbe-043bffa14948@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-14T10:55:58.692Z\",\"updatedAt\":\"2026-09-14T10:55:58.692Z\",\"id\":\"6aa7d2be88cd281464081c4d\"}]"
+              "body": "[{\"email\":\"citizen@civicon.test\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-16T12:24:12.713Z\",\"isActive\":true,\"name\":\"Ama Citizen\",\"reputation\":100,\"roles\":[\"CITIZEN\"],\"updatedAt\":\"2026-09-16T12:24:12.713Z\",\"id\":\"6aaa8a6c3950bef9772f221f\"},{\"email\":\"volunteer@civicon.test\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-16T12:24:12.713Z\",\"isActive\":true,\"name\":\"Kofi Volunteer\",\"reputation\":100,\"roles\":[\"CITIZEN\"],\"updatedAt\":\"2026-09-16T12:24:12.713Z\",\"id\":\"6aaa8a6c3950bef9772f2220\"},{\"email\":\"agency@civicon.test\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-16T12:24:12.713Z\",\"isActive\":true,\"name\":\"Sanitation Officer\",\"reputation\":100,\"roles\":[\"AGENCY\"],\"updatedAt\":\"2026-09-16T12:24:12.713Z\",\"id\":\"6aaa8a6c3950bef9772f2221\"},{\"email\":\"sponsor@civicon.test\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-16T12:24:12.713Z\",\"isActive\":true,\"name\":\"Akwaaba Foundation\",\"reputation\":100,\"roles\":[\"SPONSOR\"],\"updatedAt\":\"2026-09-16T12:24:12.713Z\",\"id\":\"6aaa8a6c3950bef9772f2222\"},{\"email\":\"admin@civicon.test\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-16T12:24:12.713Z\",\"isActive\":true,\"name\":\"Platform Admin\",\"reputation\":100,\"roles\":[\"ADMIN\"],\"updatedAt\":\"2026-09-16T12:24:12.713Z\",\"id\":\"6aaa8a6c3950bef9772f2223\"},{\"email\":\"ada@example.com\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-16T12:24:12.713Z\",\"isActive\":true,\"name\":\"Ada Lovelace\",\"reputation\":100,\"roles\":[\"CITIZEN\"],\"updatedAt\":\"2026-09-16T12:24:12.713Z\",\"id\":\"6aaa8a6c3950bef9772f2224\"},{\"email\":\"jane@example.com\",\"civicPointsCached\":0,\"createdAt\":\"2026-09-16T12:24:12.713Z\",\"isActive\":false,\"name\":\"Jane Jacobs\",\"reputation\":100,\"roles\":[\"CITIZEN\"],\"updatedAt\":\"2026-09-16T12:24:12.713Z\",\"id\":\"6aaa8a6c3950bef9772f2225\"},{\"name\":\"Ada Lovelace\",\"email\":\"ada-5f75bdf0-6a0b-43a3-97f8-3fb21f932ec3@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-16T12:24:13.839Z\",\"updatedAt\":\"2026-09-16T12:24:13.839Z\",\"id\":\"6aaa8a6d26d35fc50f012fe3\"},{\"name\":\"Disposable\",\"email\":\"disposable-bda69853-b402-4aab-912a-1ca842558efc@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-16T12:24:16.648Z\",\"updatedAt\":\"2026-09-16T12:24:16.648Z\",\"id\":\"6aaa8a7026d35fc50f012fe4\"}]"
             }
           ]
         },
@@ -856,7 +871,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"name\":\"Disposable\",\"email\":\"disposable-188c5dce-2f92-487a-8bbe-043bffa14948@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-14T10:55:58.692Z\",\"updatedAt\":\"2026-09-14T10:55:58.692Z\",\"id\":\"6aa7d2be88cd281464081c4d\"}"
+              "body": "{\"name\":\"Disposable\",\"email\":\"disposable-bda69853-b402-4aab-912a-1ca842558efc@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-16T12:24:16.648Z\",\"updatedAt\":\"2026-09-16T12:24:16.648Z\",\"id\":\"6aaa8a7026d35fc50f012fe4\"}"
             }
           ]
         },
@@ -964,7 +979,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"name\":\"Renamed By Admin\",\"email\":\"disposable-188c5dce-2f92-487a-8bbe-043bffa14948@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-14T10:55:58.692Z\",\"updatedAt\":\"2026-09-14T10:55:58.758Z\",\"id\":\"6aa7d2be88cd281464081c4d\"}"
+              "body": "{\"name\":\"Renamed By Admin\",\"email\":\"disposable-bda69853-b402-4aab-912a-1ca842558efc@example.com\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-16T12:24:16.648Z\",\"updatedAt\":\"2026-09-16T12:24:16.708Z\",\"id\":\"6aaa8a7026d35fc50f012fe4\"}"
             }
           ]
         },
@@ -1077,7 +1092,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"name\":\"Renamed By Admin\",\"email\":\"disposable-188c5dce-2f92-487a-8bbe-043bffa14948@example.com\",\"roles\":[\"AGENCY\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-14T10:55:58.692Z\",\"updatedAt\":\"2026-09-14T10:55:58.764Z\",\"id\":\"6aa7d2be88cd281464081c4d\"}"
+              "body": "{\"name\":\"Renamed By Admin\",\"email\":\"disposable-bda69853-b402-4aab-912a-1ca842558efc@example.com\",\"roles\":[\"AGENCY\"],\"civicPointsCached\":0,\"reputation\":100,\"isActive\":true,\"createdAt\":\"2026-09-16T12:24:16.648Z\",\"updatedAt\":\"2026-09-16T12:24:16.715Z\",\"id\":\"6aaa8a7026d35fc50f012fe4\"}"
             }
           ]
         },
@@ -1258,7 +1273,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWE3ZDIwNzM5NTBiZWY5NzcyZjIxZGQiLCJlbWFpbCI6ImNpdGl6ZW5AY2l2aWNvbi50ZXN0Iiwicm9sZXMiOlsiQ0lUSVpFTiJdLCJpYXQiOjE3ODkzODMzNjAsImV4cCI6MTc4OTk4ODE2MH0.ML5wGEC9zWvH9CQHrcrz7pHjiDN4-rHeRWRtiPun3hs\",\"user\":{\"id\":\"6aa7d2073950bef9772f21dd\",\"name\":\"Ama Citizen\",\"email\":\"citizen@civicon.test\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
+              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWFhOGE2YzM5NTBiZWY5NzcyZjIyMWYiLCJlbWFpbCI6ImNpdGl6ZW5AY2l2aWNvbi50ZXN0Iiwicm9sZXMiOlsiQ0lUSVpFTiJdLCJpYXQiOjE3ODk1NjE0NTcsImV4cCI6MTc5MDE2NjI1N30.mjfnGWL1VRAkhu0rQmoNepxyfaZtd8bBk2_NEb9Pqpg\",\"user\":{\"id\":\"6aaa8a6c3950bef9772f221f\",\"name\":\"Ama Citizen\",\"email\":\"citizen@civicon.test\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
             }
           ]
         },
@@ -1353,7 +1368,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWE3ZDIwNzM5NTBiZWY5NzcyZjIxZGYiLCJlbWFpbCI6ImFnZW5jeUBjaXZpY29uLnRlc3QiLCJyb2xlcyI6WyJBR0VOQ1kiXSwiaWF0IjoxNzg5MzgzMzYyLCJleHAiOjE3ODk5ODgxNjJ9.JWmGckk28MyLEPXtmqVpImbnu9L02DctP26syOog-qU\",\"user\":{\"id\":\"6aa7d2073950bef9772f21df\",\"name\":\"Sanitation Officer\",\"email\":\"agency@civicon.test\",\"roles\":[\"AGENCY\"],\"civicPointsCached\":0,\"reputation\":100}}"
+              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWFhOGE2YzM5NTBiZWY5NzcyZjIyMjEiLCJlbWFpbCI6ImFnZW5jeUBjaXZpY29uLnRlc3QiLCJyb2xlcyI6WyJBR0VOQ1kiXSwiaWF0IjoxNzg5NTYxNDU4LCJleHAiOjE3OTAxNjYyNTh9.Tv9db5tnGUHDYwdT59EmavLEDhP7DtJDmzASHwm-VFA\",\"user\":{\"id\":\"6aaa8a6c3950bef9772f2221\",\"name\":\"Sanitation Officer\",\"email\":\"agency@civicon.test\",\"roles\":[\"AGENCY\"],\"civicPointsCached\":0,\"reputation\":100}}"
             }
           ]
         },
@@ -1463,7 +1478,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"id\":\"6aa7d2c288cd281464081c4e\",\"title\":\"Collapsed culvert on the school road\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:56:02.057Z\",\"updatedAt\":\"2026-09-14T10:56:02.057Z\"}"
+              "body": "{\"id\":\"6aaa8a7226d35fc50f012fe5\",\"title\":\"Collapsed culvert on the school road\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:18.487Z\",\"updatedAt\":\"2026-09-16T12:24:18.487Z\"}"
             }
           ]
         },
@@ -1528,7 +1543,7 @@
                 }
               ],
               "cookie": [],
-              "body": "[{\"id\":\"6aa7d2c288cd281464081c4e\",\"title\":\"Collapsed culvert on the school road\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:56:02.057Z\",\"updatedAt\":\"2026-09-14T10:56:02.057Z\"},{\"id\":\"6aa7d29d88cd281464081c4b\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:55:25.990Z\",\"updatedAt\":\"2026-09-14T10:55:25.990Z\"},{\"id\":\"6aa7d29c88cd281464081c4a\",\"title\":\"Culvert collapsed by the chapel\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"DUPLICATE\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"duplicateOf\":\"6aa7d29c88cd281464081c49\",\"media\":[],\"createdAt\":\"2026-09-14T10:55:24.913Z\",\"updatedAt\":\"2026-09-14T10:55:24.921Z\"},{\"id\":\"6aa7d29c88cd281464081c49\",\"title\":\"Collapsed culvert on the school road (worsening)\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"REJECTED\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"statusReason\":\"Private land; not a municipal responsibility\",\"media\":[],\"createdAt\":\"2026-09-14T10:55:24.857Z\",\"updatedAt\":\"2026-09-14T10:55:24.928Z\"},{\"id\":\"6aa7d27788cd281464081c46\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:47.597Z\",\"updatedAt\":\"2026-09-14T10:54:47.597Z\"},{\"id\":\"6aa7d27688cd281464081c45\",\"title\":\"Culvert collapsed by the chapel\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"DUPLICATE\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"duplicateOf\":\"6aa7d27688cd281464081c44\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:46.782Z\",\"updatedAt\":\"2026-09-14T10:54:46.791Z\"},{\"id\":\"6aa7d27688cd281464081c44\",\"title\":\"Collapsed culvert on the school road (worsening)\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"REJECTED\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"statusReason\":\"Private land; not a municipal responsibility\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:46.708Z\",\"updatedAt\":\"2026-09-14T10:54:46.806Z\"},{\"id\":\"6aa7d25388cd281464081c41\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:11.478Z\",\"updatedAt\":\"2026-09-14T10:54:11.478Z\"},{\"id\":\"6aa7d25288cd281464081c40\",\"title\":\"Culvert collapsed by the chapel\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"DUPLICATE\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"duplicateOf\":\"6aa7d25288cd281464081c3f\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:10.619Z\",\"updatedAt\":\"2026-09-14T10:54:10.643Z\"},{\"id\":\"6aa7d25288cd281464081c3f\",\"title\":\"Collapsed culvert on the school road (worsening)\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"REJECTED\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"statusReason\":\"Private land; not a municipal responsibility\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:10.479Z\",\"updatedAt\":\"2026-09-14T10:54:10.669Z\"},{\"id\":\"6aa7d2073950bef9772f21e4\",\"title\":\"Blocked drain floods the junction\",\"description\":\"Standing water after every rain; the gutter is full of silt.\",\"category\":\"DRAINAGE\",\"location\":\"Market Street junction\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[{\"id\":\"6aa7d270806ec4f00e37d07e\",\"filename\":\"culvert.png\",\"contentType\":\"image/png\",\"size\":70,\"uploadedAt\":\"2026-09-14T10:54:40.868Z\",\"url\":\"/issues/media/6aa7d270806ec4f00e37d07e\"}],\"createdAt\":\"2026-09-14T10:52:55.828Z\",\"updatedAt\":\"2026-09-14T10:55:54.922Z\"},{\"id\":\"6aa7d2073950bef9772f21e5\",\"title\":\"Streetlight out for two weeks\",\"description\":\"The stretch by the school is dark from dusk.\",\"category\":\"ELECTRICITY\",\"location\":\"Ring Road East, by the school\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:52:55.828Z\",\"updatedAt\":\"2026-09-14T10:55:54.922Z\"},{\"id\":\"6aa7d2073950bef9772f21e6\",\"title\":\"Pothole damaging vehicles\",\"description\":\"Deep pothole in the inbound lane, widening each week.\",\"category\":\"ROADS\",\"location\":\"Independence Avenue, inbound\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21de\",\"media\":[],\"createdAt\":\"2026-09-14T10:52:55.828Z\",\"updatedAt\":\"2026-09-14T10:55:54.922Z\"},{\"id\":\"6aa7d2073950bef9772f21e7\",\"title\":\"Refuse skip overflowing\",\"description\":\"Uncollected for ten days; waste is spreading onto the path.\",\"category\":\"SANITATION\",\"location\":\"Behind the central market\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21e2\",\"media\":[],\"createdAt\":\"2026-09-14T10:52:55.828Z\",\"updatedAt\":\"2026-09-14T10:55:54.922Z\"}]"
+              "body": "[{\"id\":\"6aaa8a7226d35fc50f012fe5\",\"title\":\"Collapsed culvert on the school road\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:18.487Z\",\"updatedAt\":\"2026-09-16T12:24:18.487Z\"},{\"id\":\"6aaa8a6c3950bef9772f2226\",\"title\":\"Blocked drain floods the junction\",\"description\":\"Standing water after every rain; the gutter is full of silt.\",\"category\":\"DRAINAGE\",\"location\":\"Market Street junction\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[{\"id\":\"6aaa8a6cfc617dc96b732359\",\"filename\":\"culvert.png\",\"contentType\":\"image/png\",\"size\":70,\"uploadedAt\":\"2026-09-16T12:24:12.766Z\",\"purpose\":\"REPORT\",\"url\":\"/issues/media/6aaa8a6cfc617dc96b732359\"}],\"createdAt\":\"2026-09-16T12:24:12.743Z\",\"updatedAt\":\"2026-09-16T12:24:12.743Z\"},{\"id\":\"6aaa8a6c3950bef9772f2227\",\"title\":\"Streetlight out for two weeks\",\"description\":\"The stretch by the school is dark from dusk.\",\"category\":\"ELECTRICITY\",\"location\":\"Ring Road East, by the school\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:12.743Z\",\"updatedAt\":\"2026-09-16T12:24:12.743Z\"},{\"id\":\"6aaa8a6c3950bef9772f2228\",\"title\":\"Pothole damaging vehicles\",\"description\":\"Deep pothole in the inbound lane, widening each week.\",\"category\":\"ROADS\",\"location\":\"Independence Avenue, inbound\",\"status\":\"CLAIMED\",\"reportedBy\":\"6aaa8a6c3950bef9772f2220\",\"volunteerId\":\"6aaa8a6c3950bef9772f221f\",\"claimedAt\":\"2026-09-16T12:24:12.772Z\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:12.743Z\",\"updatedAt\":\"2026-09-16T12:24:12.773Z\"},{\"id\":\"6aaa8a6c3950bef9772f2229\",\"title\":\"Refuse skip overflowing\",\"description\":\"Uncollected for ten days; waste is spreading onto the path.\",\"category\":\"SANITATION\",\"location\":\"Behind the central market\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f2224\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:12.743Z\",\"updatedAt\":\"2026-09-16T12:24:12.743Z\"}]"
             }
           ]
         },
@@ -1624,7 +1639,7 @@
                 }
               ],
               "cookie": [],
-              "body": "[{\"id\":\"6aa7d2c288cd281464081c4e\",\"title\":\"Collapsed culvert on the school road\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:56:02.057Z\",\"updatedAt\":\"2026-09-14T10:56:02.057Z\"},{\"id\":\"6aa7d29d88cd281464081c4b\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:55:25.990Z\",\"updatedAt\":\"2026-09-14T10:55:25.990Z\"},{\"id\":\"6aa7d27788cd281464081c46\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:47.597Z\",\"updatedAt\":\"2026-09-14T10:54:47.597Z\"},{\"id\":\"6aa7d25388cd281464081c41\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:11.478Z\",\"updatedAt\":\"2026-09-14T10:54:11.478Z\"},{\"id\":\"6aa7d2073950bef9772f21e4\",\"title\":\"Blocked drain floods the junction\",\"description\":\"Standing water after every rain; the gutter is full of silt.\",\"category\":\"DRAINAGE\",\"location\":\"Market Street junction\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[{\"id\":\"6aa7d270806ec4f00e37d07e\",\"filename\":\"culvert.png\",\"contentType\":\"image/png\",\"size\":70,\"uploadedAt\":\"2026-09-14T10:54:40.868Z\",\"url\":\"/issues/media/6aa7d270806ec4f00e37d07e\"}],\"createdAt\":\"2026-09-14T10:52:55.828Z\",\"updatedAt\":\"2026-09-14T10:55:54.922Z\"}]"
+              "body": "[{\"id\":\"6aaa8a7226d35fc50f012fe5\",\"title\":\"Collapsed culvert on the school road\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:18.487Z\",\"updatedAt\":\"2026-09-16T12:24:18.487Z\"},{\"id\":\"6aaa8a6c3950bef9772f2226\",\"title\":\"Blocked drain floods the junction\",\"description\":\"Standing water after every rain; the gutter is full of silt.\",\"category\":\"DRAINAGE\",\"location\":\"Market Street junction\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[{\"id\":\"6aaa8a6cfc617dc96b732359\",\"filename\":\"culvert.png\",\"contentType\":\"image/png\",\"size\":70,\"uploadedAt\":\"2026-09-16T12:24:12.766Z\",\"purpose\":\"REPORT\",\"url\":\"/issues/media/6aaa8a6cfc617dc96b732359\"}],\"createdAt\":\"2026-09-16T12:24:12.743Z\",\"updatedAt\":\"2026-09-16T12:24:12.743Z\"}]"
             }
           ]
         },
@@ -1691,7 +1706,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"id\":\"6aa7d2c288cd281464081c4e\",\"title\":\"Collapsed culvert on the school road\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:56:02.057Z\",\"updatedAt\":\"2026-09-14T10:56:02.057Z\"}"
+              "body": "{\"id\":\"6aaa8a7226d35fc50f012fe5\",\"title\":\"Collapsed culvert on the school road\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:18.487Z\",\"updatedAt\":\"2026-09-16T12:24:18.487Z\"}"
             }
           ]
         },
@@ -1800,7 +1815,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"id\":\"6aa7d2c288cd281464081c4e\",\"title\":\"Collapsed culvert on the school road (worsening)\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:56:02.057Z\",\"updatedAt\":\"2026-09-14T10:56:02.117Z\"}"
+              "body": "{\"id\":\"6aaa8a7226d35fc50f012fe5\",\"title\":\"Collapsed culvert on the school road (worsening)\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:18.487Z\",\"updatedAt\":\"2026-09-16T12:24:18.572Z\"}"
             }
           ]
         },
@@ -1907,7 +1922,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"id\":\"6aa7d2c288cd281464081c4f\",\"title\":\"Culvert collapsed by the chapel\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:56:02.131Z\",\"updatedAt\":\"2026-09-14T10:56:02.131Z\"}"
+              "body": "{\"id\":\"6aaa8a7226d35fc50f012fe6\",\"title\":\"Culvert collapsed by the chapel\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:18.591Z\",\"updatedAt\":\"2026-09-16T12:24:18.591Z\"}"
             }
           ]
         },
@@ -2022,7 +2037,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"id\":\"6aa7d2c288cd281464081c4f\",\"title\":\"Culvert collapsed by the chapel\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"DUPLICATE\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"duplicateOf\":\"6aa7d2c288cd281464081c4e\",\"media\":[],\"createdAt\":\"2026-09-14T10:56:02.131Z\",\"updatedAt\":\"2026-09-14T10:56:02.152Z\"}"
+              "body": "{\"id\":\"6aaa8a7226d35fc50f012fe6\",\"title\":\"Culvert collapsed by the chapel\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"DUPLICATE\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"duplicateOf\":\"6aaa8a7226d35fc50f012fe5\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:18.591Z\",\"updatedAt\":\"2026-09-16T12:24:18.617Z\"}"
             }
           ]
         },
@@ -2137,7 +2152,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"id\":\"6aa7d2c288cd281464081c4e\",\"title\":\"Collapsed culvert on the school road (worsening)\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"REJECTED\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"statusReason\":\"Private land; not a municipal responsibility\",\"media\":[],\"createdAt\":\"2026-09-14T10:56:02.057Z\",\"updatedAt\":\"2026-09-14T10:56:02.159Z\"}"
+              "body": "{\"id\":\"6aaa8a7226d35fc50f012fe5\",\"title\":\"Collapsed culvert on the school road (worsening)\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"REJECTED\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"statusReason\":\"Private land; not a municipal responsibility\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:18.487Z\",\"updatedAt\":\"2026-09-16T12:24:18.635Z\"}"
             }
           ]
         }
@@ -2238,7 +2253,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWE3ZDIwNzM5NTBiZWY5NzcyZjIxZGUiLCJlbWFpbCI6InZvbHVudGVlckBjaXZpY29uLnRlc3QiLCJyb2xlcyI6WyJDSVRJWkVOIl0sImlhdCI6MTc4OTM4MzM2MiwiZXhwIjoxNzg5OTg4MTYyfQ.0n9YZiQQWb0nYaPh_5jHSDDRIVmdMyfIQMP7wMV2uNw\",\"user\":{\"id\":\"6aa7d2073950bef9772f21de\",\"name\":\"Kofi Volunteer\",\"email\":\"volunteer@civicon.test\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
+              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWFhOGE2YzM5NTBiZWY5NzcyZjIyMjAiLCJlbWFpbCI6InZvbHVudGVlckBjaXZpY29uLnRlc3QiLCJyb2xlcyI6WyJDSVRJWkVOIl0sImlhdCI6MTc4OTU2MTQ1OSwiZXhwIjoxNzkwMTY2MjU5fQ.g5_snDuLt7Adb_anh4yut-fM9nHw-KU-eXhS3HxzxRs\",\"user\":{\"id\":\"6aaa8a6c3950bef9772f2220\",\"name\":\"Kofi Volunteer\",\"email\":\"volunteer@civicon.test\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
             }
           ]
         },
@@ -2345,7 +2360,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"id\":\"6aa7d2c288cd281464081c50\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:56:02.980Z\",\"updatedAt\":\"2026-09-14T10:56:02.980Z\"}"
+              "body": "{\"id\":\"6aaa8a7326d35fc50f012fe7\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:19.512Z\",\"updatedAt\":\"2026-09-16T12:24:19.512Z\"}"
             }
           ]
         },
@@ -3085,7 +3100,7 @@
           ]
         },
         {
-          "name": "Claiming belongs to a later slice",
+          "name": "An agency cannot hand an issue to a volunteer",
           "request": {
             "method": "PATCH",
             "header": [
@@ -3105,7 +3120,7 @@
                 "status"
               ]
             },
-            "description": "CLAIMED, IN_PROGRESS, RESOLVED and VERIFIED exist in the enum but nothing transitions into them yet.",
+            "description": "Claiming shipped, so CLAIMED is reachable — but only through POST /issues/:id/claim, by the volunteer themselves. This route has no way to name a volunteer, so it refuses with 403: the move is legal, just not for this actor, which is a different thing from the 409 an illegal transition gives.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"status\": \"CLAIMED\"\n}",
@@ -3132,11 +3147,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('responds 409', () => pm.response.to.have.status(409));",
-                  "pm.test('names both states', () => {",
-                  "  const m = pm.response.json().message;",
-                  "  pm.expect(m).to.include('OPEN');",
-                  "  pm.expect(m).to.include('CLAIMED');",
+                  "pm.test('responds 403', () => pm.response.to.have.status(403));",
+                  "pm.test('says an agency cannot set it', () => {",
+                  "  pm.expect(pm.response.json().message).to.include('CLAIMED');",
                   "});"
                 ]
               }
@@ -3144,7 +3157,7 @@
           ],
           "response": [
             {
-              "name": "409 Conflict",
+              "name": "403 Forbidden",
               "originalRequest": {
                 "method": "PATCH",
                 "header": [
@@ -3164,7 +3177,7 @@
                     "status"
                   ]
                 },
-                "description": "CLAIMED, IN_PROGRESS, RESOLVED and VERIFIED exist in the enum but nothing transitions into them yet.",
+                "description": "Claiming shipped, so CLAIMED is reachable — but only through POST /issues/:id/claim, by the volunteer themselves. This route has no way to name a volunteer, so it refuses with 403: the move is legal, just not for this actor, which is a different thing from the 409 an illegal transition gives.",
                 "body": {
                   "mode": "raw",
                   "raw": "{\n  \"status\": \"CLAIMED\"\n}",
@@ -3185,8 +3198,8 @@
                   ]
                 }
               },
-              "status": "Conflict",
-              "code": 409,
+              "status": "Forbidden",
+              "code": 403,
               "_postman_previewlanguage": "json",
               "header": [
                 {
@@ -3195,7 +3208,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"message\":\"Cannot move an issue from OPEN to CLAIMED\",\"error\":\"Conflict\",\"statusCode\":409}"
+              "body": "{\"message\":\"An agency cannot set an issue to CLAIMED\",\"error\":\"Forbidden\",\"statusCode\":403}"
             }
           ]
         },
@@ -3731,7 +3744,7 @@
                 }
               ],
               "cookie": [],
-              "body": "[{\"id\":\"6aa7d2c288cd281464081c50\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:56:02.980Z\",\"updatedAt\":\"2026-09-14T10:56:02.980Z\"},{\"id\":\"6aa7d2c288cd281464081c4f\",\"title\":\"Culvert collapsed by the chapel\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"DUPLICATE\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"duplicateOf\":\"6aa7d2c288cd281464081c4e\",\"media\":[],\"createdAt\":\"2026-09-14T10:56:02.131Z\",\"updatedAt\":\"2026-09-14T10:56:02.152Z\"},{\"id\":\"6aa7d2c288cd281464081c4e\",\"title\":\"Collapsed culvert on the school road (worsening)\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"REJECTED\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"statusReason\":\"Private land; not a municipal responsibility\",\"media\":[],\"createdAt\":\"2026-09-14T10:56:02.057Z\",\"updatedAt\":\"2026-09-14T10:56:02.159Z\"},{\"id\":\"6aa7d29d88cd281464081c4b\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:55:25.990Z\",\"updatedAt\":\"2026-09-14T10:55:25.990Z\"},{\"id\":\"6aa7d29c88cd281464081c4a\",\"title\":\"Culvert collapsed by the chapel\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"DUPLICATE\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"duplicateOf\":\"6aa7d29c88cd281464081c49\",\"media\":[],\"createdAt\":\"2026-09-14T10:55:24.913Z\",\"updatedAt\":\"2026-09-14T10:55:24.921Z\"},{\"id\":\"6aa7d29c88cd281464081c49\",\"title\":\"Collapsed culvert on the school road (worsening)\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"REJECTED\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"statusReason\":\"Private land; not a municipal responsibility\",\"media\":[],\"createdAt\":\"2026-09-14T10:55:24.857Z\",\"updatedAt\":\"2026-09-14T10:55:24.928Z\"},{\"id\":\"6aa7d27788cd281464081c46\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:47.597Z\",\"updatedAt\":\"2026-09-14T10:54:47.597Z\"},{\"id\":\"6aa7d27688cd281464081c45\",\"title\":\"Culvert collapsed by the chapel\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"DUPLICATE\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"duplicateOf\":\"6aa7d27688cd281464081c44\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:46.782Z\",\"updatedAt\":\"2026-09-14T10:54:46.791Z\"},{\"id\":\"6aa7d27688cd281464081c44\",\"title\":\"Collapsed culvert on the school road (worsening)\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"REJECTED\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"statusReason\":\"Private land; not a municipal responsibility\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:46.708Z\",\"updatedAt\":\"2026-09-14T10:54:46.806Z\"},{\"id\":\"6aa7d25388cd281464081c41\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:11.478Z\",\"updatedAt\":\"2026-09-14T10:54:11.478Z\"},{\"id\":\"6aa7d25288cd281464081c40\",\"title\":\"Culvert collapsed by the chapel\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"DUPLICATE\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"duplicateOf\":\"6aa7d25288cd281464081c3f\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:10.619Z\",\"updatedAt\":\"2026-09-14T10:54:10.643Z\"},{\"id\":\"6aa7d25288cd281464081c3f\",\"title\":\"Collapsed culvert on the school road (worsening)\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"REJECTED\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"statusReason\":\"Private land; not a municipal responsibility\",\"media\":[],\"createdAt\":\"2026-09-14T10:54:10.479Z\",\"updatedAt\":\"2026-09-14T10:54:10.669Z\"},{\"id\":\"6aa7d2073950bef9772f21e4\",\"title\":\"Blocked drain floods the junction\",\"description\":\"Standing water after every rain; the gutter is full of silt.\",\"category\":\"DRAINAGE\",\"location\":\"Market Street junction\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[{\"id\":\"6aa7d270806ec4f00e37d07e\",\"filename\":\"culvert.png\",\"contentType\":\"image/png\",\"size\":70,\"uploadedAt\":\"2026-09-14T10:54:40.868Z\",\"url\":\"/issues/media/6aa7d270806ec4f00e37d07e\"}],\"createdAt\":\"2026-09-14T10:52:55.828Z\",\"updatedAt\":\"2026-09-14T10:55:54.922Z\"},{\"id\":\"6aa7d2073950bef9772f21e5\",\"title\":\"Streetlight out for two weeks\",\"description\":\"The stretch by the school is dark from dusk.\",\"category\":\"ELECTRICITY\",\"location\":\"Ring Road East, by the school\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21dd\",\"media\":[],\"createdAt\":\"2026-09-14T10:52:55.828Z\",\"updatedAt\":\"2026-09-14T10:55:54.922Z\"},{\"id\":\"6aa7d2073950bef9772f21e6\",\"title\":\"Pothole damaging vehicles\",\"description\":\"Deep pothole in the inbound lane, widening each week.\",\"category\":\"ROADS\",\"location\":\"Independence Avenue, inbound\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21de\",\"media\":[],\"createdAt\":\"2026-09-14T10:52:55.828Z\",\"updatedAt\":\"2026-09-14T10:55:54.922Z\"},{\"id\":\"6aa7d2073950bef9772f21e7\",\"title\":\"Refuse skip overflowing\",\"description\":\"Uncollected for ten days; waste is spreading onto the path.\",\"category\":\"SANITATION\",\"location\":\"Behind the central market\",\"status\":\"OPEN\",\"reportedBy\":\"6aa7d2073950bef9772f21e2\",\"media\":[],\"createdAt\":\"2026-09-14T10:52:55.828Z\",\"updatedAt\":\"2026-09-14T10:55:54.922Z\"}]"
+              "body": "[{\"id\":\"6aaa8a7326d35fc50f012fe7\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:19.512Z\",\"updatedAt\":\"2026-09-16T12:24:19.512Z\"},{\"id\":\"6aaa8a7226d35fc50f012fe6\",\"title\":\"Culvert collapsed by the chapel\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"DUPLICATE\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"duplicateOf\":\"6aaa8a7226d35fc50f012fe5\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:18.591Z\",\"updatedAt\":\"2026-09-16T12:24:18.617Z\"},{\"id\":\"6aaa8a7226d35fc50f012fe5\",\"title\":\"Collapsed culvert on the school road (worsening)\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"REJECTED\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"statusReason\":\"Private land; not a municipal responsibility\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:18.487Z\",\"updatedAt\":\"2026-09-16T12:24:18.635Z\"},{\"id\":\"6aaa8a6c3950bef9772f2226\",\"title\":\"Blocked drain floods the junction\",\"description\":\"Standing water after every rain; the gutter is full of silt.\",\"category\":\"DRAINAGE\",\"location\":\"Market Street junction\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[{\"id\":\"6aaa8a6cfc617dc96b732359\",\"filename\":\"culvert.png\",\"contentType\":\"image/png\",\"size\":70,\"uploadedAt\":\"2026-09-16T12:24:12.766Z\",\"purpose\":\"REPORT\",\"url\":\"/issues/media/6aaa8a6cfc617dc96b732359\"}],\"createdAt\":\"2026-09-16T12:24:12.743Z\",\"updatedAt\":\"2026-09-16T12:24:12.743Z\"},{\"id\":\"6aaa8a6c3950bef9772f2227\",\"title\":\"Streetlight out for two weeks\",\"description\":\"The stretch by the school is dark from dusk.\",\"category\":\"ELECTRICITY\",\"location\":\"Ring Road East, by the school\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:12.743Z\",\"updatedAt\":\"2026-09-16T12:24:12.743Z\"},{\"id\":\"6aaa8a6c3950bef9772f2228\",\"title\":\"Pothole damaging vehicles\",\"description\":\"Deep pothole in the inbound lane, widening each week.\",\"category\":\"ROADS\",\"location\":\"Independence Avenue, inbound\",\"status\":\"CLAIMED\",\"reportedBy\":\"6aaa8a6c3950bef9772f2220\",\"volunteerId\":\"6aaa8a6c3950bef9772f221f\",\"claimedAt\":\"2026-09-16T12:24:12.772Z\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:12.743Z\",\"updatedAt\":\"2026-09-16T12:24:12.773Z\"},{\"id\":\"6aaa8a6c3950bef9772f2229\",\"title\":\"Refuse skip overflowing\",\"description\":\"Uncollected for ten days; waste is spreading onto the path.\",\"category\":\"SANITATION\",\"location\":\"Behind the central market\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f2224\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:12.743Z\",\"updatedAt\":\"2026-09-16T12:24:12.743Z\"}]"
             }
           ]
         },
@@ -3858,7 +3871,7 @@
                 }
               ],
               "cookie": [],
-              "body": "[{\"id\":\"6aa7d270806ec4f00e37d07e\",\"filename\":\"culvert.png\",\"contentType\":\"image/png\",\"size\":70,\"uploadedAt\":\"2026-09-14T10:54:40.868Z\",\"url\":\"/issues/media/6aa7d270806ec4f00e37d07e\"}]"
+              "body": "[{\"id\":\"6aaa8a6cfc617dc96b732359\",\"filename\":\"culvert.png\",\"contentType\":\"image/png\",\"size\":70,\"uploadedAt\":\"2026-09-16T12:24:12.766Z\",\"purpose\":\"REPORT\",\"url\":\"/issues/media/6aaa8a6cfc617dc96b732359\"}]"
             }
           ]
         },
@@ -4409,6 +4422,944 @@
       ]
     },
     {
+      "name": "Issue lifecycle",
+      "description": "A citizen other than the reporter claims an issue, works it, and an agency confirms it.\n\nRun `npm run seed -- --fresh` first. Runs top to bottom; each request feeds the next.\n\nThe resolution step stops at its 400 deliberately: attaching proof needs a file selected in the UI, which a CLI run cannot supply.",
+      "item": [
+        {
+          "name": "Sign in as the reporter",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "The seeded citizen reports two of the sample issues. Their id is captured so the next request can find an issue they own.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"citizen@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('citizen_token', json.token);",
+                  "pm.collectionVariables.set('citizen_user_id', json.user.id);"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "The seeded citizen reports two of the sample issues. Their id is captured so the next request can find an issue they own.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"citizen@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWFhOGE2YzM5NTBiZWY5NzcyZjIyMWYiLCJlbWFpbCI6ImNpdGl6ZW5AY2l2aWNvbi50ZXN0Iiwicm9sZXMiOlsiQ0lUSVpFTiJdLCJpYXQiOjE3ODk1NjE0NjAsImV4cCI6MTc5MDE2NjI2MH0.PddDj-ZgRHUh4dw-zEGwDfIuh65Py1deYw781fN_E_s\",\"user\":{\"id\":\"6aaa8a6c3950bef9772f221f\",\"name\":\"Ama Citizen\",\"email\":\"citizen@civicon.test\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
+            }
+          ]
+        },
+        {
+          "name": "Sign in as the volunteer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "A different citizen — the one who will do the work.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"volunteer@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('volunteer_token', pm.response.json().token);"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/auth/login",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                },
+                "description": "A different citizen — the one who will do the work.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"volunteer@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWFhOGE2YzM5NTBiZWY5NzcyZjIyMjAiLCJlbWFpbCI6InZvbHVudGVlckBjaXZpY29uLnRlc3QiLCJyb2xlcyI6WyJDSVRJWkVOIl0sImlhdCI6MTc4OTU2MTQ2MSwiZXhwIjoxNzkwMTY2MjYxfQ.tAnnH-qA9lx8oF2fKWY_V2E6uz8vi2kOwS-2Sex5upQ\",\"user\":{\"id\":\"6aaa8a6c3950bef9772f2220\",\"name\":\"Kofi Volunteer\",\"email\":\"volunteer@civicon.test\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
+            }
+          ]
+        },
+        {
+          "name": "Find an open issue the reporter owns",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues?status=OPEN&reportedBy={{citizen_user_id}}&limit=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "OPEN"
+                },
+                {
+                  "key": "reportedBy",
+                  "value": "{{citizen_user_id}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Filtering by reporter makes the refusal below deterministic: the issue is certain to be one this account reported.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "const issues = pm.response.json();",
+                  "pm.test('the seed left an open issue', () => pm.expect(issues.length).to.be.greaterThan(0));",
+                  "if (issues.length) { pm.collectionVariables.set('lifecycle_issue_id', issues[0].id); }"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "200 OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/issues?status=OPEN&reportedBy={{citizen_user_id}}&limit=1",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "issues"
+                  ],
+                  "query": [
+                    {
+                      "key": "status",
+                      "value": "OPEN"
+                    },
+                    {
+                      "key": "reportedBy",
+                      "value": "{{citizen_user_id}}"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "1"
+                    }
+                  ]
+                },
+                "description": "Filtering by reporter makes the refusal below deterministic: the issue is certain to be one this account reported.",
+                "auth": {
+                  "type": "noauth"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "[{\"id\":\"6aaa8a7326d35fc50f012fe7\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:19.512Z\",\"updatedAt\":\"2026-09-16T12:24:19.512Z\"}]"
+            }
+          ]
+        },
+        {
+          "name": "The reporter cannot claim their own issue",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/claim",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{lifecycle_issue_id}}",
+                "claim"
+              ]
+            },
+            "description": "Anti-self-dealing. Once civic points exist, reporting and resolving the same issue would be a way to pay yourself.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 403', () => pm.response.to.have.status(403));",
+                  "pm.test('says why', () => pm.expect(pm.response.text()).to.match(/reported/i));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/claim",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "issues",
+                    "{{lifecycle_issue_id}}",
+                    "claim"
+                  ]
+                },
+                "description": "Anti-self-dealing. Once civic points exist, reporting and resolving the same issue would be a way to pay yourself.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{citizen_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"message\":\"Cannot POST /issues//claim\",\"error\":\"Not Found\",\"statusCode\":404}"
+            }
+          ]
+        },
+        {
+          "name": "The volunteer claims it",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/claim",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{lifecycle_issue_id}}",
+                "claim"
+              ]
+            },
+            "description": "200, not 201: this changes an existing issue rather than creating one.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{volunteer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('records the holder', () => {",
+                  "  pm.expect(json.status).to.eql('CLAIMED');",
+                  "  pm.expect(json.volunteerId).to.be.a('string');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/claim",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "issues",
+                    "{{lifecycle_issue_id}}",
+                    "claim"
+                  ]
+                },
+                "description": "200, not 201: this changes an existing issue rather than creating one.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{volunteer_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"message\":\"Cannot POST /issues//claim\",\"error\":\"Not Found\",\"statusCode\":404}"
+            }
+          ]
+        },
+        {
+          "name": "A second claimer is refused",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/claim",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{lifecycle_issue_id}}",
+                "claim"
+              ]
+            },
+            "description": "The claim is exclusive — the first holder keeps it until they release.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// 403 for the reporter, 409 for anyone else. This account is the",
+                  "// reporter, so the stricter refusal wins.",
+                  "pm.test('is refused', () => pm.expect(pm.response.code).to.be.oneOf([403, 409]));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/claim",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "issues",
+                    "{{lifecycle_issue_id}}",
+                    "claim"
+                  ]
+                },
+                "description": "The claim is exclusive — the first holder keeps it until they release.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{citizen_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"message\":\"Cannot POST /issues//claim\",\"error\":\"Not Found\",\"statusCode\":404}"
+            }
+          ]
+        },
+        {
+          "name": "Start work",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/start",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{lifecycle_issue_id}}",
+                "start"
+              ]
+            },
+            "description": "Optional — a volunteer may resolve straight from CLAIMED.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{volunteer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('is in progress', () => pm.expect(pm.response.json().status).to.eql('IN_PROGRESS'));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/start",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "issues",
+                    "{{lifecycle_issue_id}}",
+                    "start"
+                  ]
+                },
+                "description": "Optional — a volunteer may resolve straight from CLAIMED.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{volunteer_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"message\":\"Cannot POST /issues//start\",\"error\":\"Not Found\",\"statusCode\":404}"
+            }
+          ]
+        },
+        {
+          "name": "Resolving without evidence is refused",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/resolution",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{lifecycle_issue_id}}",
+                "resolution"
+              ]
+            },
+            "description": "A note is not enough: at least one proof photo uploaded by the current holder is required.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Trust me, it is done\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{volunteer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 400', () => pm.response.to.have.status(400));",
+                  "pm.test('asks for a photo', () => pm.expect(pm.response.text()).to.match(/photo|proof/i));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/resolution",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "issues",
+                    "{{lifecycle_issue_id}}",
+                    "resolution"
+                  ]
+                },
+                "description": "A note is not enough: at least one proof photo uploaded by the current holder is required.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"note\": \"Trust me, it is done\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{volunteer_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"message\":\"Cannot POST /issues//resolution\",\"error\":\"Not Found\",\"statusCode\":404}"
+            }
+          ]
+        },
+        {
+          "name": "A non-holder cannot resolve",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/resolution",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{lifecycle_issue_id}}",
+                "resolution"
+              ]
+            },
+            "description": "Only the volunteer holding the issue may resolve it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Not mine to finish\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/resolution",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "issues",
+                    "{{lifecycle_issue_id}}",
+                    "resolution"
+                  ]
+                },
+                "description": "Only the volunteer holding the issue may resolve it.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"note\": \"Not mine to finish\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{citizen_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"message\":\"Cannot POST /issues//resolution\",\"error\":\"Not Found\",\"statusCode\":404}"
+            }
+          ]
+        },
+        {
+          "name": "The volunteer releases the claim",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/claim",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{lifecycle_issue_id}}",
+                "claim"
+              ]
+            },
+            "description": "Returns the issue to OPEN and clears the holder, so anyone else can take it on. An agency can also force this with a reason.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{volunteer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('is open again with no holder', () => {",
+                  "  pm.expect(json.status).to.eql('OPEN');",
+                  "  pm.expect(json.volunteerId).to.be.undefined;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "404 Not Found",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/claim",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "issues",
+                    "{{lifecycle_issue_id}}",
+                    "claim"
+                  ]
+                },
+                "description": "Returns the issue to OPEN and clears the holder, so anyone else can take it on. An agency can also force this with a reason.",
+                "auth": {
+                  "type": "bearer",
+                  "bearer": [
+                    {
+                      "key": "token",
+                      "value": "{{volunteer_token}}",
+                      "type": "string"
+                    }
+                  ]
+                }
+              },
+              "status": "Not Found",
+              "code": 404,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json; charset=utf-8"
+                }
+              ],
+              "cookie": [],
+              "body": "{\"message\":\"Cannot DELETE /issues//claim\",\"error\":\"Not Found\",\"statusCode\":404}"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Guardrails",
       "description": "Every one of these is enforced server-side, not by hiding a control in a UI. Run this folder as a security regression suite — all requests assert their status code.",
       "item": [
@@ -4503,7 +5454,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWE3ZDIwNzM5NTBiZWY5NzcyZjIxZTEiLCJlbWFpbCI6ImFkbWluQGNpdmljb24udGVzdCIsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc4OTM4MzM2NCwiZXhwIjoxNzg5OTg4MTY0fQ.ytcRK5u9c5occtydS7mn1SUw83h9Hm73Is8akWhroig\",\"user\":{\"id\":\"6aa7d2073950bef9772f21e1\",\"name\":\"Platform Admin\",\"email\":\"admin@civicon.test\",\"roles\":[\"ADMIN\"],\"civicPointsCached\":0,\"reputation\":100}}"
+              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWFhOGE2YzM5NTBiZWY5NzcyZjIyMjMiLCJlbWFpbCI6ImFkbWluQGNpdmljb24udGVzdCIsInJvbGVzIjpbIkFETUlOIl0sImlhdCI6MTc4OTU2MTQ2MiwiZXhwIjoxNzkwMTY2MjYyfQ.CuJVegPSSf7kbccTEh0jw1psXSWz47apbW4PmI3yJA8\",\"user\":{\"id\":\"6aaa8a6c3950bef9772f2223\",\"name\":\"Platform Admin\",\"email\":\"admin@civicon.test\",\"roles\":[\"ADMIN\"],\"civicPointsCached\":0,\"reputation\":100}}"
             }
           ]
         },
@@ -4600,7 +5551,7 @@
                 }
               ],
               "cookie": [],
-              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWE3ZDIwNzM5NTBiZWY5NzcyZjIxZGQiLCJlbWFpbCI6ImNpdGl6ZW5AY2l2aWNvbi50ZXN0Iiwicm9sZXMiOlsiQ0lUSVpFTiJdLCJpYXQiOjE3ODkzODMzNjUsImV4cCI6MTc4OTk4ODE2NX0.ta2iizw3qWSn7yg2_LGVyqm1LD91BNjYzzqzpcLOCH8\",\"user\":{\"id\":\"6aa7d2073950bef9772f21dd\",\"name\":\"Ama Citizen\",\"email\":\"citizen@civicon.test\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
+              "body": "{\"token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI2YWFhOGE2YzM5NTBiZWY5NzcyZjIyMWYiLCJlbWFpbCI6ImNpdGl6ZW5AY2l2aWNvbi50ZXN0Iiwicm9sZXMiOlsiQ0lUSVpFTiJdLCJpYXQiOjE3ODk1NjE0NjMsImV4cCI6MTc5MDE2NjI2M30.vtSHivpAj0qt_nMHyvZYXKt7U6qT3inzg1VXkzKUqUc\",\"user\":{\"id\":\"6aaa8a6c3950bef9772f221f\",\"name\":\"Ama Citizen\",\"email\":\"citizen@civicon.test\",\"roles\":[\"CITIZEN\"],\"civicPointsCached\":0,\"reputation\":100}}"
             }
           ]
         },
