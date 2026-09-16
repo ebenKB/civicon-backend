@@ -5,10 +5,11 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { IssueStatus } from '../contracts/index.js';
+import { AiOutcome, IssueStatus } from '../contracts/index.js';
 import { ChangeStatusDto } from './dto/change-status.dto.js';
 import { ResolveIssueDto } from './dto/resolve-issue.dto.js';
 import { IssueMediaService } from './issue-media.service.js';
+import { IssueVerificationService } from './issue-verification.service.js';
 import { IssuesService } from './issues.service.js';
 import { IssueDocument } from './schemas/issue.schema.js';
 
@@ -29,6 +30,10 @@ const ALLOWED_TRANSITIONS: ReadonlyMap<IssueStatus, readonly IssueStatus[]> =
     ],
     [IssueStatus.IN_PROGRESS, [IssueStatus.RESOLVED, IssueStatus.OPEN]],
     [IssueStatus.RESOLVED, [IssueStatus.VERIFIED, IssueStatus.IN_PROGRESS]],
+    // The only way out of VERIFIED, and only an agency has it. An auto-approval
+    // becomes a payout once civic points exist, so the model's mistakes must be
+    // undoable.
+    [IssueStatus.VERIFIED, [IssueStatus.IN_PROGRESS]],
   ]);
 
 // Note this yields 403, not the 409 an illegal transition gives: the move may
@@ -55,6 +60,7 @@ export class IssueLifecycleService {
   constructor(
     private readonly issuesService: IssuesService,
     private readonly issueMediaService: IssueMediaService,
+    private readonly issueVerificationService: IssueVerificationService,
   ) {}
 
   async changeStatus(id: string, dto: ChangeStatusDto): Promise<IssueDocument> {
@@ -107,9 +113,12 @@ export class IssueLifecycleService {
     }
 
     if (dto.status === IssueStatus.IN_PROGRESS) {
-      // Sent back for more work: the same volunteer keeps it.
+      // Sent back for more work, or an approval reversed: the same volunteer
+      // keeps it either way. aiAssessment is left alone — what the model said,
+      // and got wrong, is worth keeping.
       issue.resolvedAt = undefined;
       issue.resolutionNote = undefined;
+      issue.verifiedAt = undefined;
     }
 
     if (dto.status === IssueStatus.OPEN) {
@@ -143,6 +152,19 @@ export class IssueLifecycleService {
     issue.resolutionNote = dto.note;
     issue.resolvedAt = new Date();
     issue.status = IssueStatus.RESOLVED;
+
+    // undefined means the feature is off, in which case the issue simply waits
+    // for an agency exactly as it did before this slice.
+    const assessment = await this.issueVerificationService.assess(issue);
+    if (assessment) {
+      issue.aiAssessment = assessment;
+
+      if (assessment.outcome === AiOutcome.APPROVED) {
+        issue.status = IssueStatus.VERIFIED;
+        issue.verifiedAt = new Date();
+      }
+    }
+
     return issue.save();
   }
   private assertTransition(from: IssueStatus, to: IssueStatus): void {

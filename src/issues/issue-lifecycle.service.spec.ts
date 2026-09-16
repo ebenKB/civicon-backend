@@ -5,9 +5,10 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { IssueStatus } from '../contracts/index.js';
+import { AiOutcome, IssueStatus } from '../contracts/index.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaService } from './issue-media.service.js';
+import { IssueVerificationService } from './issue-verification.service.js';
 import { IssuesService } from './issues.service.js';
 
 const ISSUE_ID = '507f1f77bcf86cd799439011';
@@ -17,6 +18,7 @@ describe('IssueLifecycleService', () => {
   let service: IssueLifecycleService;
   let issuesService: { findOne: ReturnType<typeof vi.fn> };
   let mediaService: { countProofBy: ReturnType<typeof vi.fn> };
+  let verificationService: { assess: ReturnType<typeof vi.fn> };
 
   const issueAt = (status: IssueStatus) => ({
     status,
@@ -28,12 +30,17 @@ describe('IssueLifecycleService', () => {
   beforeEach(async () => {
     issuesService = { findOne: vi.fn() };
     mediaService = { countProofBy: vi.fn().mockResolvedValue(1) };
+    verificationService = { assess: vi.fn().mockResolvedValue(undefined) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IssueLifecycleService,
         { provide: IssuesService, useValue: issuesService },
         { provide: IssueMediaService, useValue: mediaService },
+        {
+          provide: IssueVerificationService,
+          useValue: verificationService,
+        },
       ],
     }).compile();
 
@@ -415,5 +422,100 @@ describe('IssueLifecycleService', () => {
         ).rejects.toBeInstanceOf(ForbiddenException);
       },
     );
+  });
+  describe('auto-approval', () => {
+    const VOLUNTEER = '507f1f77bcf86cd799439044';
+
+    const inProgress = () => ({
+      status: IssueStatus.IN_PROGRESS,
+      reportedBy: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      volunteerId: new Types.ObjectId(VOLUNTEER),
+      save: vi.fn().mockImplementation(function (this: unknown) {
+        return Promise.resolve(this);
+      }),
+    });
+
+    it('stops at RESOLVED when the feature is off', async () => {
+      issuesService.findOne.mockResolvedValue(inProgress());
+
+      const result = await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'x' });
+
+      expect(result.status).toBe(IssueStatus.RESOLVED);
+      expect(result.aiAssessment).toBeUndefined();
+    });
+
+    it('promotes to VERIFIED on APPROVED', async () => {
+      issuesService.findOne.mockResolvedValue(inProgress());
+      verificationService.assess.mockResolvedValue({
+        outcome: AiOutcome.APPROVED,
+        confidence: 0.9,
+        assessedAt: new Date(),
+      });
+
+      const result = await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'x' });
+
+      expect(result.status).toBe(IssueStatus.VERIFIED);
+      expect(result.verifiedAt).toBeInstanceOf(Date);
+    });
+
+    it.each([
+      AiOutcome.BELOW_THRESHOLD,
+      AiOutcome.SKIPPED_NO_BEFORE,
+      AiOutcome.FAILED,
+    ])(
+      'stays RESOLVED on %s, with the assessment attached',
+      async (outcome) => {
+        issuesService.findOne.mockResolvedValue(inProgress());
+        verificationService.assess.mockResolvedValue({
+          outcome,
+          assessedAt: new Date(),
+        });
+
+        const result = await service.resolve(ISSUE_ID, VOLUNTEER, {
+          note: 'x',
+        });
+
+        expect(result.status).toBe(IssueStatus.RESOLVED);
+        expect(result.aiAssessment?.outcome).toBe(outcome);
+      },
+    );
+  });
+
+  describe('reversal', () => {
+    const VOLUNTEER = '507f1f77bcf86cd799439044';
+
+    const verified = () => ({
+      status: IssueStatus.VERIFIED,
+      reportedBy: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      volunteerId: new Types.ObjectId(VOLUNTEER),
+      verifiedAt: new Date(),
+      aiAssessment: { outcome: AiOutcome.APPROVED, assessedAt: new Date() },
+      save: vi.fn().mockImplementation(function (this: unknown) {
+        return Promise.resolve(this);
+      }),
+    });
+
+    it('lets an agency undo an approval, with a reason', async () => {
+      issuesService.findOne.mockResolvedValue(verified());
+
+      const result = await service.changeStatus(ISSUE_ID, {
+        status: IssueStatus.IN_PROGRESS,
+        reason: 'The culvert is still blocked',
+      });
+
+      expect(result.status).toBe(IssueStatus.IN_PROGRESS);
+      expect(result.verifiedAt).toBeUndefined();
+      expect(result.volunteerId?.toString()).toBe(VOLUNTEER);
+      // What the model said, and got wrong, is worth keeping.
+      expect(result.aiAssessment).toBeDefined();
+    });
+
+    it('refuses a reversal with no reason', async () => {
+      issuesService.findOne.mockResolvedValue(verified());
+
+      await expect(
+        service.changeStatus(ISSUE_ID, { status: IssueStatus.IN_PROGRESS }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
   });
 });
