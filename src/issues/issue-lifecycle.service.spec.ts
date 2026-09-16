@@ -1,5 +1,10 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Types } from 'mongoose';
 import { IssueStatus } from '../contracts/index.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssuesService } from './issues.service.js';
@@ -63,12 +68,13 @@ describe('IssueLifecycleService', () => {
   });
 
   describe('refused transitions', () => {
+    // CLAIMED left this list when claiming shipped; the rest still have no
+    // path out of OPEN, and reaching them requires going through a claim.
     it.each([
-      IssueStatus.CLAIMED,
       IssueStatus.IN_PROGRESS,
       IssueStatus.RESOLVED,
       IssueStatus.VERIFIED,
-    ])('refuses OPEN -> %s, which belongs to a later slice', async (target) => {
+    ])('refuses OPEN -> %s, which needs a claim first', async (target) => {
       issuesService.findOne.mockResolvedValue(issueAt(IssueStatus.OPEN));
 
       await expect(
@@ -140,6 +146,127 @@ describe('IssueLifecycleService', () => {
           duplicateOf: OTHER_ID,
         }),
       ).rejects.toThrow();
+    });
+  });
+  describe('claim', () => {
+    const REPORTER = '507f1f77bcf86cd799439011';
+    const VOLUNTEER = '507f1f77bcf86cd799439044';
+
+    const openIssue = (overrides: Record<string, unknown> = {}) => ({
+      status: IssueStatus.OPEN,
+      reportedBy: new Types.ObjectId(REPORTER),
+      save: vi.fn().mockImplementation(function (this: unknown) {
+        return Promise.resolve(this);
+      }),
+      ...overrides,
+    });
+
+    it('lets a citizen who is not the reporter take it', async () => {
+      issuesService.findOne.mockResolvedValue(openIssue());
+
+      const result = await service.claim(ISSUE_ID, VOLUNTEER);
+
+      expect(result.status).toBe(IssueStatus.CLAIMED);
+      expect(result.volunteerId?.toString()).toBe(VOLUNTEER);
+      expect(result.claimedAt).toBeInstanceOf(Date);
+    });
+
+    // The rule the Role contract exists to express: a reporter who could also
+    // claim could approve their own work once points are on the line.
+    it('refuses the reporter, naming the rule', async () => {
+      issuesService.findOne.mockResolvedValue(openIssue());
+
+      await expect(service.claim(ISSUE_ID, REPORTER)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+      await expect(service.claim(ISSUE_ID, REPORTER)).rejects.toThrow(
+        /report/i,
+      );
+    });
+
+    it('refuses an issue someone else already holds', async () => {
+      issuesService.findOne.mockResolvedValue(
+        openIssue({
+          status: IssueStatus.CLAIMED,
+          volunteerId: new Types.ObjectId(VOLUNTEER),
+        }),
+      );
+
+      await expect(
+        service.claim(ISSUE_ID, '507f1f77bcf86cd799439055'),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('release', () => {
+    const REPORTER = '507f1f77bcf86cd799439011';
+    const VOLUNTEER = '507f1f77bcf86cd799439044';
+
+    const heldIssue = (status = IssueStatus.CLAIMED) => ({
+      status,
+      reportedBy: new Types.ObjectId(REPORTER),
+      volunteerId: new Types.ObjectId(VOLUNTEER),
+      claimedAt: new Date(),
+      save: vi.fn().mockImplementation(function (this: unknown) {
+        return Promise.resolve(this);
+      }),
+    });
+
+    it('returns the issue to OPEN and clears the holder', async () => {
+      issuesService.findOne.mockResolvedValue(heldIssue());
+
+      const result = await service.release(ISSUE_ID, VOLUNTEER);
+
+      expect(result.status).toBe(IssueStatus.OPEN);
+      expect(result.volunteerId).toBeUndefined();
+      expect(result.claimedAt).toBeUndefined();
+    });
+
+    it('works from IN_PROGRESS too', async () => {
+      issuesService.findOne.mockResolvedValue(
+        heldIssue(IssueStatus.IN_PROGRESS),
+      );
+
+      const result = await service.release(ISSUE_ID, VOLUNTEER);
+
+      expect(result.status).toBe(IssueStatus.OPEN);
+    });
+
+    it('refuses anyone but the holder', async () => {
+      issuesService.findOne.mockResolvedValue(heldIssue());
+
+      await expect(service.release(ISSUE_ID, REPORTER)).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
+    });
+  });
+
+  describe('start', () => {
+    const VOLUNTEER = '507f1f77bcf86cd799439044';
+
+    const claimed = () => ({
+      status: IssueStatus.CLAIMED,
+      reportedBy: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      volunteerId: new Types.ObjectId(VOLUNTEER),
+      save: vi.fn().mockImplementation(function (this: unknown) {
+        return Promise.resolve(this);
+      }),
+    });
+
+    it('moves a claimed issue to IN_PROGRESS', async () => {
+      issuesService.findOne.mockResolvedValue(claimed());
+
+      const result = await service.start(ISSUE_ID, VOLUNTEER);
+
+      expect(result.status).toBe(IssueStatus.IN_PROGRESS);
+    });
+
+    it('refuses anyone but the holder', async () => {
+      issuesService.findOne.mockResolvedValue(claimed());
+
+      await expect(
+        service.start(ISSUE_ID, '507f1f77bcf86cd799439055'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 });

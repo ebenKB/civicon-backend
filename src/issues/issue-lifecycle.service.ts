@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
 } from '@nestjs/common';
 import { Types } from 'mongoose';
@@ -10,11 +11,23 @@ import { IssuesService } from './issues.service.js';
 import { IssueDocument } from './schemas/issue.schema.js';
 
 /**
- * The transition table. Only moves out of OPEN exist in the reporting slice;
- * claiming and resolution add the rest without touching anything else here.
+ * Which statuses each status may move to. Actor rules live in the methods
+ * below: the same move is legal for different people depending on intent — a
+ * holder releasing and an agency forcing a release both go CLAIMED -> OPEN.
  */
 const ALLOWED_TRANSITIONS: ReadonlyMap<IssueStatus, readonly IssueStatus[]> =
-  new Map([[IssueStatus.OPEN, [IssueStatus.REJECTED, IssueStatus.DUPLICATE]]]);
+  new Map([
+    [
+      IssueStatus.OPEN,
+      [IssueStatus.CLAIMED, IssueStatus.REJECTED, IssueStatus.DUPLICATE],
+    ],
+    [
+      IssueStatus.CLAIMED,
+      [IssueStatus.IN_PROGRESS, IssueStatus.RESOLVED, IssueStatus.OPEN],
+    ],
+    [IssueStatus.IN_PROGRESS, [IssueStatus.RESOLVED, IssueStatus.OPEN]],
+    [IssueStatus.RESOLVED, [IssueStatus.VERIFIED, IssueStatus.IN_PROGRESS]],
+  ]);
 
 /**
  * The single place an issue's status changes. Keeping it out of IssuesService
@@ -59,6 +72,76 @@ export class IssueLifecycleService {
 
     issue.status = dto.status;
     issue.statusReason = dto.reason;
+    return issue.save();
+  }
+  private assertTransition(from: IssueStatus, to: IssueStatus): void {
+    const allowed = ALLOWED_TRANSITIONS.get(from) ?? [];
+    if (!allowed.includes(to)) {
+      throw new ConflictException(`Cannot move an issue from ${from} to ${to}`);
+    }
+  }
+
+  private assertIsHolder(issue: IssueDocument, actorId: string): void {
+    if (issue.volunteerId?.toString() !== actorId) {
+      throw new ForbiddenException(
+        'Only the volunteer holding this issue can do that',
+      );
+    }
+  }
+
+  /**
+   * Anti-self-dealing. A reporter who could also claim could, once civic points
+   * exist, report and resolve their own issue for credit.
+   */
+  async claim(id: string, actorId: string): Promise<IssueDocument> {
+    const issue = await this.issuesService.findOne(id);
+
+    // Checked before the transition so a second claimer gets a message about
+    // the conflict rather than "cannot move from CLAIMED to CLAIMED".
+    if (issue.status === IssueStatus.CLAIMED && issue.volunteerId) {
+      throw new ConflictException(
+        'This issue is already claimed by another volunteer',
+      );
+    }
+
+    this.assertTransition(issue.status, IssueStatus.CLAIMED);
+
+    if (issue.reportedBy.toString() === actorId) {
+      throw new ForbiddenException(
+        'You cannot claim an issue you reported yourself',
+      );
+    }
+
+    issue.volunteerId = new Types.ObjectId(actorId);
+    issue.claimedAt = new Date();
+    issue.status = IssueStatus.CLAIMED;
+    return issue.save();
+  }
+
+  async release(id: string, actorId: string): Promise<IssueDocument> {
+    const issue = await this.issuesService.findOne(id);
+    this.assertTransition(issue.status, IssueStatus.OPEN);
+    this.assertIsHolder(issue, actorId);
+
+    return this.returnToOpen(issue);
+  }
+
+  async start(id: string, actorId: string): Promise<IssueDocument> {
+    const issue = await this.issuesService.findOne(id);
+    this.assertTransition(issue.status, IssueStatus.IN_PROGRESS);
+    this.assertIsHolder(issue, actorId);
+
+    issue.status = IssueStatus.IN_PROGRESS;
+    return issue.save();
+  }
+
+  /** Shared by a holder's release and an agency's force-release. */
+  private returnToOpen(issue: IssueDocument): Promise<IssueDocument> {
+    issue.volunteerId = undefined;
+    issue.claimedAt = undefined;
+    issue.resolvedAt = undefined;
+    issue.resolutionNote = undefined;
+    issue.status = IssueStatus.OPEN;
     return issue.save();
   }
 }
