@@ -1,7 +1,17 @@
 # AI Proof Verification — Design
 
-**Status:** approved, not yet implemented
+**Status:** implemented, then partly revised — see the note below.
 **Slice:** B2. Builds on B1 (`2026-09-16-issue-claim-resolution-design.md`).
+
+> **Revised by `2026-09-16-civic-points-design.md` §1.** This document describes
+> an approval at or above the threshold setting `VERIFIED` directly. That was
+> correct while `VERIFIED` meant nothing but a status; once it awards civic
+> points it makes the model's judgement into a payout with no human in the loop.
+>
+> An `APPROVED` assessment now reaches a new `AI_APPROVED` state and waits for an
+> agency to confirm before anything is awarded. Everything else here — the
+> threshold, the before/after comparison, the outcomes, the failure handling, the
+> reversal path — is unchanged. Read §1 of the points design alongside this.
 
 ## Goal
 
