@@ -251,6 +251,41 @@ Both return 403 rather than 409: the move is legal, just not for that actor.
 
 `GET /issues?volunteerId=<id>` lists what someone is working on.
 
+### AI proof verification
+
+When a volunteer submits proof, Claude compares the reporter's before
+photographs against the volunteer's after photographs and decides whether the
+reported problem is gone.
+
+| Confidence | Result |
+|---|---|
+| `fixed` and at or above 0.7 | `VERIFIED` automatically |
+| anything else | stays `RESOLVED`, with the model's reasoning attached |
+
+**The model can approve, but never reject.** A confident "not fixed" is recorded
+as `BELOW_THRESHOLD` and left for an agency — a false negative would cost a
+volunteer their credit on the model's say-so.
+
+**An agency can reverse an approval**: `PATCH /issues/:id/status` with
+`IN_PROGRESS` and a reason. It is the only way out of `VERIFIED`. The assessment
+stays on the issue, because what the model said and got wrong is worth keeping.
+
+The check never blocks a resolution. With no before photo it records
+`SKIPPED_NO_BEFORE`; if the API fails or times out it records `FAILED`; either
+way the work is saved and an agency reviews it.
+
+`GET /issues?aiOutcome=BELOW_THRESHOLD` is the agency's review queue.
+
+**The feature is off unless `ANTHROPIC_API_KEY` is set**, so the test suites run
+unchanged and cost nothing. One opt-in test calls the real API:
+
+```bash
+AI_E2E=1 ANTHROPIC_API_KEY=sk-... npm run test:e2e
+```
+
+Each assessment is one `claude-opus-5` vision call with up to four images, so
+cost scales with submissions rather than with agency review.
+
 ### Media
 
 A reporter can attach photographs and short video to their own issue while it is
