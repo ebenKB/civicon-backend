@@ -6,6 +6,7 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { getConnectionToken } from '@nestjs/mongoose';
+import { Readable } from 'node:stream';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
 import { IssueStatus, MediaPurpose } from '../contracts/index.js';
@@ -243,6 +244,80 @@ describe('IssueMediaService', () => {
       expect(filter['metadata.purpose']).toBe(MediaPurpose.PROOF);
       expect(filter['metadata.uploadedBy'].toString()).toBe(REPORTER);
       expect(filter['metadata.issueId'].toString()).toBe(ISSUE_ID);
+    });
+  });
+  describe('readForAssessment', () => {
+    const asStream = () => Readable.from([Buffer.from('bytes')]);
+
+    const withPurpose = (
+      purpose: MediaPurpose,
+      uploader: string,
+      type = 'image/png',
+    ) =>
+      fileDoc({
+        metadata: {
+          issueId: new Types.ObjectId(ISSUE_ID),
+          uploadedBy: new Types.ObjectId(uploader),
+          contentType: type,
+          purpose,
+        },
+      });
+
+    beforeEach(() => {
+      bucket.openDownloadStream = vi.fn(() => asStream());
+    });
+
+    it('splits the reporter photos from the current holder proof', async () => {
+      bucket.find.mockReturnValue(
+        cursorOf([
+          withPurpose(MediaPurpose.REPORT, REPORTER),
+          withPurpose(MediaPurpose.PROOF, STRANGER),
+        ]),
+      );
+
+      const result = await service.readForAssessment(ISSUE_ID, STRANGER, 2);
+
+      expect(result.before).toHaveLength(1);
+      expect(result.after).toHaveLength(1);
+      expect(result.before[0].base64).toBe(
+        Buffer.from('bytes').toString('base64'),
+      );
+    });
+
+    // Proof is read by author, so a previous volunteer's photo is not evidence
+    // for this one.
+    it('ignores proof uploaded by someone other than the holder', async () => {
+      bucket.find.mockReturnValue(
+        cursorOf([withPurpose(MediaPurpose.PROOF, REPORTER)]),
+      );
+
+      const result = await service.readForAssessment(ISSUE_ID, STRANGER, 2);
+
+      expect(result.after).toHaveLength(0);
+    });
+
+    it('caps each side, because base64 inflates by a third', async () => {
+      bucket.find.mockReturnValue(
+        cursorOf(
+          Array.from({ length: 5 }, () =>
+            withPurpose(MediaPurpose.REPORT, REPORTER),
+          ),
+        ),
+      );
+
+      const result = await service.readForAssessment(ISSUE_ID, STRANGER, 2);
+
+      expect(result.before).toHaveLength(2);
+    });
+
+    it('skips video: the model is given photographs', async () => {
+      bucket.find.mockReturnValue(
+        cursorOf([withPurpose(MediaPurpose.REPORT, REPORTER, 'video/mp4')]),
+      );
+
+      const result = await service.readForAssessment(ISSUE_ID, STRANGER, 2);
+
+      expect(result.before).toHaveLength(0);
     });
   });
 });

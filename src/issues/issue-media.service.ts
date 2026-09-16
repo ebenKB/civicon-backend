@@ -29,6 +29,11 @@ import {
 import { MediaStream, UploadedFile } from './issue-media.types.js';
 import { IssuesService } from './issues.service.js';
 
+export interface MediaBytes {
+  base64: string;
+  contentType: string;
+}
+
 /**
  * The only place in the codebase that knows the bytes live in GridFS. Its
  * public surface is storage-agnostic on purpose: moving to S3 replaces the body
@@ -242,5 +247,53 @@ export class IssueMediaService implements OnModuleInit {
       throw new NotFoundException(`Media with id "${mediaId}" not found`);
     }
     return file;
+  }
+  /**
+   * The evidence pair, ready for a vision request. Kept here rather than in the
+   * verification service so GridFS stays named in exactly one file.
+   *
+   * Video is excluded: the model is given photographs, and a 50MB clip would
+   * not survive base64 encoding into a request anyway.
+   */
+  async readForAssessment(
+    issueId: string,
+    volunteerId: string,
+    perSide: number,
+  ): Promise<{ before: MediaBytes[]; after: MediaBytes[] }> {
+    const files = (await this.bucket
+      .find({ 'metadata.issueId': new Types.ObjectId(issueId) })
+      .toArray()) as unknown as MediaFileDocument[];
+
+    const isImage = (file: MediaFileDocument) =>
+      (file.metadata?.contentType ?? '').startsWith('image/');
+
+    const before = files
+      .filter((f) => f.metadata?.purpose === MediaPurpose.REPORT && isImage(f))
+      .slice(0, perSide);
+
+    const after = files
+      .filter(
+        (f) =>
+          f.metadata?.purpose === MediaPurpose.PROOF &&
+          f.metadata?.uploadedBy?.toString() === volunteerId &&
+          isImage(f),
+      )
+      .slice(0, perSide);
+
+    return {
+      before: await Promise.all(before.map((f) => this.toBytes(f))),
+      after: await Promise.all(after.map((f) => this.toBytes(f))),
+    };
+  }
+
+  private async toBytes(file: MediaFileDocument): Promise<MediaBytes> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of this.bucket.openDownloadStream(file._id)) {
+      chunks.push(chunk as Buffer);
+    }
+    return {
+      base64: Buffer.concat(chunks).toString('base64'),
+      contentType: file.metadata?.contentType ?? 'image/png',
+    };
   }
 }
