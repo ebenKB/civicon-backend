@@ -22,6 +22,10 @@ export class ListIssuesQuery {
   @IsMongoId()
   reportedBy?: string;
 
+  @IsOptional()
+  @IsMongoId()
+  volunteerId?: string;
+
   // Query parameters arrive as strings and enableImplicitConversion is off, so
   // @Type is what makes @IsInt meaningful here.
   @IsOptional()

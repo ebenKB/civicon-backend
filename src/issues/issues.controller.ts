@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -18,6 +19,7 @@ import { Role } from '../contracts/index.js';
 import { ChangeStatusDto } from './dto/change-status.dto.js';
 import { CreateIssueDto } from './dto/create-issue.dto.js';
 import { ListIssuesQuery } from './dto/list-issues.query.js';
+import { ResolveIssueDto } from './dto/resolve-issue.dto.js';
 import { UpdateIssueDto } from './dto/update-issue.dto.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaService } from './issue-media.service.js';
@@ -85,6 +87,45 @@ export class IssuesController {
   ) {
     return toPublicIssue(
       await this.issueLifecycleService.changeStatus(id, changeStatusDto),
+    );
+  }
+  // The route is the intent: none of these takes a status, so a client cannot
+  // ask for a transition that does not belong to it.
+  @Post(':id/claim')
+  @Roles(Role.CITIZEN)
+  async claim(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return toPublicIssue(await this.issueLifecycleService.claim(id, user.id));
+  }
+
+  // No @Roles(): holder-only, and the service enforces that. A role check here
+  // would be redundant and would wrongly refuse a holder whose roles change.
+  @Delete(':id/claim')
+  async release(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return toPublicIssue(await this.issueLifecycleService.release(id, user.id));
+  }
+
+  @Post(':id/start')
+  async start(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return toPublicIssue(await this.issueLifecycleService.start(id, user.id));
+  }
+
+  @Post(':id/resolution')
+  async resolve(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() resolveIssueDto: ResolveIssueDto,
+  ) {
+    return toPublicIssue(
+      await this.issueLifecycleService.resolve(id, user.id, resolveIssueDto),
     );
   }
 }

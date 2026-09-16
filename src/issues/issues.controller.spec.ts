@@ -40,7 +40,13 @@ describe('IssuesController', () => {
       findOne: vi.fn(),
       updateOwn: vi.fn(),
     };
-    lifecycle = { changeStatus: vi.fn() };
+    lifecycle = {
+      changeStatus: vi.fn(),
+      claim: vi.fn(),
+      release: vi.fn(),
+      start: vi.fn(),
+      resolve: vi.fn(),
+    };
     mediaService = { listFor: vi.fn(), listForMany: vi.fn() };
     mediaService.listFor.mockResolvedValue([]);
     mediaService.listForMany.mockResolvedValue(new Map());
@@ -134,5 +140,38 @@ describe('IssuesController', () => {
 
     expect(mediaService.listForMany).toHaveBeenCalledTimes(1);
     expect(mediaService.listFor).not.toHaveBeenCalled();
+  });
+  it.each([
+    ['claim', 'claim'],
+    ['release', 'release'],
+    ['start', 'start'],
+  ])('passes the caller id to %s', async (method, lifecycleMethod) => {
+    lifecycle[lifecycleMethod].mockResolvedValue(issueDoc());
+
+    await (
+      controller as unknown as Record<
+        string,
+        (id: string, user: unknown) => Promise<unknown>
+      >
+    )[method]('507f1f77bcf86cd799439011', caller);
+
+    expect(lifecycle[lifecycleMethod]).toHaveBeenCalledWith(
+      '507f1f77bcf86cd799439011',
+      reporterId.toString(),
+    );
+  });
+
+  it('passes the note and the caller id to resolve', async () => {
+    lifecycle.resolve.mockResolvedValue(issueDoc());
+
+    await controller.resolve('507f1f77bcf86cd799439011', caller, {
+      note: 'Cleared it',
+    });
+
+    expect(lifecycle.resolve).toHaveBeenCalledWith(
+      '507f1f77bcf86cd799439011',
+      reporterId.toString(),
+      { note: 'Cleared it' },
+    );
   });
 });

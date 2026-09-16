@@ -106,6 +106,15 @@ describe('IssuesService', () => {
       expect(filter.reportedBy.toString()).toBe(REPORTER);
     });
 
+    it('filters by volunteer as an ObjectId', async () => {
+      model.find.mockReturnValue(chainOf([]));
+
+      await service.findAll({ volunteerId: REPORTER });
+
+      const [filter] = model.find.mock.calls[0];
+      expect(filter.volunteerId).toBeInstanceOf(Types.ObjectId);
+    });
+
     it('sorts newest first and applies the default paging window', async () => {
       const chain = chainOf([]);
       model.find.mockReturnValue(chain);

@@ -44,6 +44,9 @@ export class IssuesService {
     if (query.reportedBy) {
       filter.reportedBy = new Types.ObjectId(query.reportedBy);
     }
+    if (query.volunteerId) {
+      filter.volunteerId = new Types.ObjectId(query.volunteerId);
+    }
 
     return this.issueModel
       .find(filter)
