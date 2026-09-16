@@ -7,6 +7,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
 import { IssueStatus } from '../contracts/index.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
+import { IssueMediaService } from './issue-media.service.js';
 import { IssuesService } from './issues.service.js';
 
 const ISSUE_ID = '507f1f77bcf86cd799439011';
@@ -15,6 +16,7 @@ const OTHER_ID = '507f1f77bcf86cd799439022';
 describe('IssueLifecycleService', () => {
   let service: IssueLifecycleService;
   let issuesService: { findOne: ReturnType<typeof vi.fn> };
+  let mediaService: { countProofBy: ReturnType<typeof vi.fn> };
 
   const issueAt = (status: IssueStatus) => ({
     status,
@@ -25,11 +27,13 @@ describe('IssueLifecycleService', () => {
 
   beforeEach(async () => {
     issuesService = { findOne: vi.fn() };
+    mediaService = { countProofBy: vi.fn().mockResolvedValue(1) };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         IssueLifecycleService,
         { provide: IssuesService, useValue: issuesService },
+        { provide: IssueMediaService, useValue: mediaService },
       ],
     }).compile();
 
@@ -68,19 +72,19 @@ describe('IssueLifecycleService', () => {
   });
 
   describe('refused transitions', () => {
-    // CLAIMED left this list when claiming shipped; the rest still have no
-    // path out of OPEN, and reaching them requires going through a claim.
-    it.each([
-      IssueStatus.IN_PROGRESS,
-      IssueStatus.RESOLVED,
-      IssueStatus.VERIFIED,
-    ])('refuses OPEN -> %s, which needs a claim first', async (target) => {
-      issuesService.findOne.mockResolvedValue(issueAt(IssueStatus.OPEN));
+    // CLAIMED left this list when claiming shipped. RESOLVED left it too, but
+    // for a different reason: it is refused as 403 because no agency may set it
+    // at all (see 'the agency verdict'), never reaching the transition check.
+    it.each([IssueStatus.IN_PROGRESS, IssueStatus.VERIFIED])(
+      'refuses OPEN -> %s, which needs a claim first',
+      async (target) => {
+        issuesService.findOne.mockResolvedValue(issueAt(IssueStatus.OPEN));
 
-      await expect(
-        service.changeStatus(ISSUE_ID, { status: target }),
-      ).rejects.toBeInstanceOf(ConflictException);
-    });
+        await expect(
+          service.changeStatus(ISSUE_ID, { status: target }),
+        ).rejects.toBeInstanceOf(ConflictException);
+      },
+    );
 
     it('refuses any move out of a terminal state', async () => {
       issuesService.findOne.mockResolvedValue(issueAt(IssueStatus.REJECTED));
@@ -268,5 +272,148 @@ describe('IssueLifecycleService', () => {
         service.start(ISSUE_ID, '507f1f77bcf86cd799439055'),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
+  });
+  describe('resolve', () => {
+    const VOLUNTEER = '507f1f77bcf86cd799439044';
+
+    const inProgress = () => ({
+      status: IssueStatus.IN_PROGRESS,
+      reportedBy: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      volunteerId: new Types.ObjectId(VOLUNTEER),
+      save: vi.fn().mockImplementation(function (this: unknown) {
+        return Promise.resolve(this);
+      }),
+    });
+
+    it('records the note and moves to RESOLVED', async () => {
+      issuesService.findOne.mockResolvedValue(inProgress());
+
+      const result = await service.resolve(ISSUE_ID, VOLUNTEER, {
+        note: 'Cleared the silt and reset the grate.',
+      });
+
+      expect(result.status).toBe(IssueStatus.RESOLVED);
+      expect(result.resolutionNote).toContain('silt');
+      expect(result.resolvedAt).toBeInstanceOf(Date);
+    });
+
+    it('refuses without a proof photo from this volunteer', async () => {
+      issuesService.findOne.mockResolvedValue(inProgress());
+      mediaService.countProofBy.mockResolvedValue(0);
+
+      await expect(
+        service.resolve(ISSUE_ID, VOLUNTEER, { note: 'Done' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('counts proof by the current holder, not by anyone', async () => {
+      issuesService.findOne.mockResolvedValue(inProgress());
+
+      await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'Done' });
+
+      expect(mediaService.countProofBy).toHaveBeenCalledWith(
+        ISSUE_ID,
+        VOLUNTEER,
+      );
+    });
+
+    it('refuses anyone but the holder', async () => {
+      issuesService.findOne.mockResolvedValue(inProgress());
+
+      await expect(
+        service.resolve(ISSUE_ID, '507f1f77bcf86cd799439055', { note: 'x' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('the agency verdict', () => {
+    const VOLUNTEER = '507f1f77bcf86cd799439044';
+
+    const resolved = () => ({
+      status: IssueStatus.RESOLVED,
+      reportedBy: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      volunteerId: new Types.ObjectId(VOLUNTEER),
+      resolvedAt: new Date(),
+      resolutionNote: 'Done',
+      save: vi.fn().mockImplementation(function (this: unknown) {
+        return Promise.resolve(this);
+      }),
+    });
+
+    it('verifies a resolved issue', async () => {
+      issuesService.findOne.mockResolvedValue(resolved());
+
+      const result = await service.changeStatus(ISSUE_ID, {
+        status: IssueStatus.VERIFIED,
+      });
+
+      expect(result.status).toBe(IssueStatus.VERIFIED);
+      expect(result.verifiedAt).toBeInstanceOf(Date);
+      // The holder is kept: slice C awards points to this person.
+      expect(result.volunteerId?.toString()).toBe(VOLUNTEER);
+    });
+
+    it('sends work back to IN_PROGRESS with a reason, keeping the holder', async () => {
+      issuesService.findOne.mockResolvedValue(resolved());
+
+      const result = await service.changeStatus(ISSUE_ID, {
+        status: IssueStatus.IN_PROGRESS,
+        reason: 'The grate is still blocked',
+      });
+
+      expect(result.status).toBe(IssueStatus.IN_PROGRESS);
+      expect(result.volunteerId?.toString()).toBe(VOLUNTEER);
+      expect(result.resolvedAt).toBeUndefined();
+    });
+
+    it('refuses a send-back with no reason', async () => {
+      issuesService.findOne.mockResolvedValue(resolved());
+
+      await expect(
+        service.changeStatus(ISSUE_ID, { status: IssueStatus.IN_PROGRESS }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('force-releases a claimed issue, clearing the holder', async () => {
+      issuesService.findOne.mockResolvedValue({
+        ...resolved(),
+        status: IssueStatus.CLAIMED,
+      });
+
+      const result = await service.changeStatus(ISSUE_ID, {
+        status: IssueStatus.OPEN,
+        reason: 'No progress for a fortnight',
+      });
+
+      expect(result.status).toBe(IssueStatus.OPEN);
+      expect(result.volunteerId).toBeUndefined();
+    });
+
+    it('refuses a force-release with no reason', async () => {
+      issuesService.findOne.mockResolvedValue({
+        ...resolved(),
+        status: IssueStatus.CLAIMED,
+      });
+
+      await expect(
+        service.changeStatus(ISSUE_ID, { status: IssueStatus.OPEN }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    // An agency must not be able to skip the evidence requirement by setting
+    // RESOLVED directly, nor hand the issue to someone by setting CLAIMED.
+    it.each([IssueStatus.RESOLVED, IssueStatus.CLAIMED])(
+      'refuses %s through the agency path',
+      async (target) => {
+        issuesService.findOne.mockResolvedValue({
+          ...resolved(),
+          status: IssueStatus.IN_PROGRESS,
+        });
+
+        await expect(
+          service.changeStatus(ISSUE_ID, { status: target }),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+      },
+    );
   });
 });

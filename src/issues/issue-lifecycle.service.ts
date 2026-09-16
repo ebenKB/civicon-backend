@@ -7,6 +7,8 @@ import {
 import { Types } from 'mongoose';
 import { IssueStatus } from '../contracts/index.js';
 import { ChangeStatusDto } from './dto/change-status.dto.js';
+import { ResolveIssueDto } from './dto/resolve-issue.dto.js';
+import { IssueMediaService } from './issue-media.service.js';
 import { IssuesService } from './issues.service.js';
 import { IssueDocument } from './schemas/issue.schema.js';
 
@@ -29,6 +31,20 @@ const ALLOWED_TRANSITIONS: ReadonlyMap<IssueStatus, readonly IssueStatus[]> =
     [IssueStatus.RESOLVED, [IssueStatus.VERIFIED, IssueStatus.IN_PROGRESS]],
   ]);
 
+// Note this yields 403, not the 409 an illegal transition gives: the move may
+// be legal, just not for this actor.
+//
+// RESOLVED is absent on purpose — it requires evidence, and an agency setting
+// it directly would walk around that. CLAIMED is absent because a claim needs a
+// volunteer, which this route has no way to name.
+const AGENCY_TARGETS: readonly IssueStatus[] = [
+  IssueStatus.VERIFIED,
+  IssueStatus.IN_PROGRESS,
+  IssueStatus.OPEN,
+  IssueStatus.REJECTED,
+  IssueStatus.DUPLICATE,
+];
+
 /**
  * The single place an issue's status changes. Keeping it out of IssuesService
  * means the rules are unit-testable without a database, and the later slices'
@@ -36,18 +52,34 @@ const ALLOWED_TRANSITIONS: ReadonlyMap<IssueStatus, readonly IssueStatus[]> =
  */
 @Injectable()
 export class IssueLifecycleService {
-  constructor(private readonly issuesService: IssuesService) {}
+  constructor(
+    private readonly issuesService: IssuesService,
+    private readonly issueMediaService: IssueMediaService,
+  ) {}
 
   async changeStatus(id: string, dto: ChangeStatusDto): Promise<IssueDocument> {
     const issue = await this.issuesService.findOne(id);
 
-    const allowed = ALLOWED_TRANSITIONS.get(issue.status) ?? [];
+    if (!AGENCY_TARGETS.includes(dto.status)) {
+      throw new ForbiddenException(
+        `An agency cannot set an issue to ${dto.status}`,
+      );
+    }
+
     // A move to the current status is refused rather than ignored: silently
     // accepting it would hide a client bug.
-    if (!allowed.includes(dto.status)) {
-      throw new ConflictException(
-        `Cannot move an issue from ${issue.status} to ${dto.status}`,
-      );
+    this.assertTransition(issue.status, dto.status);
+
+    // Both of these overrule a volunteer, so both must be explained.
+    if (
+      dto.status === IssueStatus.IN_PROGRESS ||
+      (dto.status === IssueStatus.OPEN && issue.volunteerId)
+    ) {
+      if (!dto.reason) {
+        throw new BadRequestException(
+          'A reason is required when overruling a volunteer',
+        );
+      }
     }
 
     if (dto.status === IssueStatus.REJECTED && !dto.reason) {
@@ -70,8 +102,47 @@ export class IssueLifecycleService {
       issue.duplicateOf = new Types.ObjectId(dto.duplicateOf);
     }
 
+    if (dto.status === IssueStatus.VERIFIED) {
+      issue.verifiedAt = new Date();
+    }
+
+    if (dto.status === IssueStatus.IN_PROGRESS) {
+      // Sent back for more work: the same volunteer keeps it.
+      issue.resolvedAt = undefined;
+      issue.resolutionNote = undefined;
+    }
+
+    if (dto.status === IssueStatus.OPEN) {
+      issue.statusReason = dto.reason;
+      return this.returnToOpen(issue);
+    }
+
     issue.status = dto.status;
     issue.statusReason = dto.reason;
+    return issue.save();
+  }
+
+  async resolve(
+    id: string,
+    actorId: string,
+    dto: ResolveIssueDto,
+  ): Promise<IssueDocument> {
+    const issue = await this.issuesService.findOne(id);
+    this.assertTransition(issue.status, IssueStatus.RESOLVED);
+    this.assertIsHolder(issue, actorId);
+
+    // Proof is read by author, so evidence left by a previous volunteer does
+    // not satisfy this.
+    const proof = await this.issueMediaService.countProofBy(id, actorId);
+    if (proof === 0) {
+      throw new BadRequestException(
+        'Attach at least one photo as proof of work before resolving',
+      );
+    }
+
+    issue.resolutionNote = dto.note;
+    issue.resolvedAt = new Date();
+    issue.status = IssueStatus.RESOLVED;
     return issue.save();
   }
   private assertTransition(from: IssueStatus, to: IssueStatus): void {
