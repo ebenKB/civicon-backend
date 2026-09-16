@@ -1,4 +1,8 @@
-import { IssueCategory, IssueStatus } from '../contracts/index.js';
+import {
+  AiAssessment,
+  IssueCategory,
+  IssueStatus,
+} from '../contracts/index.js';
 import { PublicMedia } from './issue-media-response.js';
 import { IssueDocument } from './schemas/issue.schema.js';
 
@@ -21,6 +25,7 @@ export interface PublicIssue {
   resolutionNote?: string;
   resolvedAt?: Date;
   verifiedAt?: Date;
+  aiAssessment?: AiAssessment;
   media: PublicMedia[];
   createdAt: Date;
   updatedAt: Date;
@@ -45,6 +50,7 @@ export function toPublicIssue(
     resolutionNote: issue.resolutionNote,
     resolvedAt: issue.resolvedAt,
     verifiedAt: issue.verifiedAt,
+    aiAssessment: issue.aiAssessment,
     media,
     createdAt: issue.createdAt,
     updatedAt: issue.updatedAt,

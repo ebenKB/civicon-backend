@@ -1,5 +1,5 @@
 import { Types } from 'mongoose';
-import { IssueCategory, IssueStatus } from '../contracts/index.js';
+import { AiOutcome, IssueCategory, IssueStatus } from '../contracts/index.js';
 import { IssueDocument } from './schemas/issue.schema.js';
 import { toPublicIssue } from './issue-response.js';
 
@@ -37,6 +37,7 @@ describe('toPublicIssue', () => {
       resolutionNote: undefined,
       resolvedAt: undefined,
       verifiedAt: undefined,
+      aiAssessment: undefined,
       media: [],
       createdAt: new Date('2026-09-13T10:00:00Z'),
       updatedAt: new Date('2026-09-13T10:00:00Z'),
@@ -94,5 +95,18 @@ describe('toPublicIssue', () => {
     const result = toPublicIssue(issueDoc({ volunteerId }));
 
     expect(result.volunteerId).toBe(volunteerId.toString());
+  });
+  it('carries an assessment when one exists', () => {
+    const assessment = {
+      outcome: AiOutcome.BELOW_THRESHOLD,
+      confidence: 0.4,
+      reasoning: 'The grate is still partly obstructed.',
+      model: 'claude-opus-5',
+      assessedAt: new Date(),
+    };
+
+    expect(
+      toPublicIssue(issueDoc({ aiAssessment: assessment })).aiAssessment,
+    ).toEqual(assessment);
   });
 });

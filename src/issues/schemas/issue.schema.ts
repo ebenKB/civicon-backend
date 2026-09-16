@@ -1,6 +1,14 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
-import { IssueCategory, IssueStatus } from '../../contracts/index.js';
+import {
+  AiOutcome,
+  IssueCategory,
+  IssueStatus,
+} from '../../contracts/index.js';
+// `import type`: AiAssessment appears in a decorated signature, which
+// isolatedModules + emitDecoratorMetadata require to be erased. AiOutcome above
+// stays a value import because Object.values() needs it at runtime.
+import type { AiAssessment } from '../../contracts/index.js';
 
 export type IssueDocument = HydratedDocument<Issue>;
 
@@ -80,6 +88,23 @@ export class Issue {
   @Prop()
   verifiedAt?: Date;
 
+  /**
+   * What the AI made of the volunteer's evidence. Absent when the feature is
+   * off, which is how an issue resolved without a configured key looks exactly
+   * as it did before this slice.
+   */
+  @Prop({
+    type: {
+      outcome: { type: String, enum: Object.values(AiOutcome) },
+      confidence: Number,
+      reasoning: String,
+      model: String,
+      assessedAt: Date,
+    },
+    _id: false,
+  })
+  aiAssessment?: AiAssessment;
+
   // Supplied by `timestamps: true`. Declared without @Prop so they are typed on
   // the document without being redeclared as schema paths.
   createdAt: Date;
@@ -90,3 +115,6 @@ export const IssueSchema = SchemaFactory.createForClass(Issue);
 
 // Serves the default listing: newest first, usually filtered by status.
 IssueSchema.index({ status: 1, createdAt: -1 });
+
+// Serves the agency's review queue: everything not APPROVED needs a human.
+IssueSchema.index({ 'aiAssessment.outcome': 1 });
