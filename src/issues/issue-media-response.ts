@@ -1,4 +1,5 @@
 import type { Types } from 'mongoose';
+import { MediaPurpose } from '../contracts/index.js';
 
 /**
  * The media shape the API returns. Explicit, like toPublicIssue: adding a field
@@ -10,6 +11,7 @@ export interface PublicMedia {
   contentType: string;
   size: number;
   uploadedAt: Date;
+  purpose: MediaPurpose;
   /** Ready to drop into a src attribute. */
   url: string;
 }
@@ -30,6 +32,7 @@ export interface MediaFileDocument {
     issueId?: Types.ObjectId;
     uploadedBy?: Types.ObjectId;
     contentType?: string;
+    purpose?: string;
   };
 }
 
@@ -40,6 +43,10 @@ export function toPublicMedia(file: MediaFileDocument): PublicMedia {
     contentType: file.metadata?.contentType ?? 'application/octet-stream',
     size: file.length,
     uploadedAt: file.uploadDate,
+    // Files stored before this slice carry no purpose. Everything that existed
+    // then was uploaded by a reporter while the issue was OPEN, so REPORT is
+    // the correct reading and no backfill is needed.
+    purpose: (file.metadata?.purpose as MediaPurpose) ?? MediaPurpose.REPORT,
     url: `/issues/media/${file._id.toString()}`,
   };
 }

@@ -58,3 +58,17 @@ export function checkUpload(
 
   return null;
 }
+
+/**
+ * Why a file is attached, derived from the issue's state at upload time and
+ * never supplied by the client — the same principle that keeps reportedBy and
+ * status out of request bodies.
+ *
+ * Named `purpose` rather than `kind` because MediaKind above already means
+ * image-vs-video; two different "kind"s in one module would be worse than
+ * diverging from the design document's wording.
+ */
+export enum MediaPurpose {
+  REPORT = 'REPORT',
+  PROOF = 'PROOF',
+}

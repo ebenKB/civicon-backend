@@ -8,7 +8,7 @@ import {
 import { getConnectionToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { IssueStatus } from '../contracts/index.js';
+import { IssueStatus, MediaPurpose } from '../contracts/index.js';
 import { IssueMediaService } from './issue-media.service.js';
 import { IssuesService } from './issues.service.js';
 
@@ -203,6 +203,46 @@ describe('IssueMediaService', () => {
       await expect(
         service.openDownload(new Types.ObjectId().toString()),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+  describe('purpose', () => {
+    const claimedIssue = (volunteerId: string) => ({
+      _id: new Types.ObjectId(ISSUE_ID),
+      reportedBy: new Types.ObjectId(REPORTER),
+      volunteerId: new Types.ObjectId(volunteerId),
+      status: IssueStatus.CLAIMED,
+    });
+
+    it('refuses a non-holder while the issue is claimed', async () => {
+      issuesService.findOne.mockResolvedValue(claimedIssue(STRANGER));
+
+      await expect(
+        service.upload(ISSUE_ID, REPORTER, anImage()),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('refuses anyone once the issue is resolved', async () => {
+      issuesService.findOne.mockResolvedValue({
+        ...claimedIssue(STRANGER),
+        status: IssueStatus.RESOLVED,
+      });
+
+      await expect(
+        service.upload(ISSUE_ID, STRANGER, anImage()),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('countProofBy', () => {
+    it("counts only the named volunteer's proof", async () => {
+      bucket.find.mockReturnValue(cursorOf([fileDoc(), fileDoc()]));
+
+      await service.countProofBy(ISSUE_ID, REPORTER);
+
+      const [filter] = bucket.find.mock.calls[0];
+      expect(filter['metadata.purpose']).toBe(MediaPurpose.PROOF);
+      expect(filter['metadata.uploadedBy'].toString()).toBe(REPORTER);
+      expect(filter['metadata.issueId'].toString()).toBe(ISSUE_ID);
     });
   });
 });

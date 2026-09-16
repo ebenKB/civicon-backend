@@ -19,6 +19,7 @@ import {
   IssueStatus,
   MEDIA_BUCKET,
   MEDIA_LIMITS,
+  MediaPurpose,
 } from '../contracts/index.js';
 import {
   MediaFileDocument,
@@ -66,7 +67,7 @@ export class IssueMediaService implements OnModuleInit {
     actorId: string,
     file: UploadedFile,
   ): Promise<PublicMedia> {
-    await this.assertMayAttach(issueId, actorId);
+    const purpose = await this.assertMayAttach(issueId, actorId);
 
     const rejection = checkUpload(file.mimetype, file.size);
     if (rejection?.reason === 'type') {
@@ -94,6 +95,7 @@ export class IssueMediaService implements OnModuleInit {
         issueId: new Types.ObjectId(issueId),
         uploadedBy: new Types.ObjectId(actorId),
         contentType: file.mimetype,
+        purpose,
       },
     });
 
@@ -178,24 +180,57 @@ export class IssueMediaService implements OnModuleInit {
     await this.bucket.delete(file._id);
   }
 
-  /** Ownership and state are stated once, here, and reused by upload and remove. */
+  /**
+   * Who may attach, and what the file counts as. Both are positional: the
+   * issue's state decides, so a client cannot claim its upload is something it
+   * is not.
+   */
   private async assertMayAttach(
     issueId: string,
     actorId: string,
-  ): Promise<void> {
+  ): Promise<MediaPurpose> {
     const issue = await this.issuesService.findOne(issueId);
 
-    if (issue.reportedBy.toString() !== actorId) {
-      throw new ForbiddenException(
-        'You can only attach media to issues you reported',
-      );
+    if (issue.status === IssueStatus.OPEN) {
+      if (issue.reportedBy.toString() !== actorId) {
+        throw new ForbiddenException(
+          'You can only attach media to issues you reported',
+        );
+      }
+      return MediaPurpose.REPORT;
     }
 
-    if (issue.status !== IssueStatus.OPEN) {
-      throw new ConflictException(
-        `Media can only be attached while an issue is OPEN; this one is ${issue.status}`,
-      );
+    if (
+      issue.status === IssueStatus.CLAIMED ||
+      issue.status === IssueStatus.IN_PROGRESS
+    ) {
+      if (issue.volunteerId?.toString() !== actorId) {
+        throw new ForbiddenException(
+          'Only the volunteer holding this issue can attach proof of work',
+        );
+      }
+      return MediaPurpose.PROOF;
     }
+
+    throw new ConflictException(
+      `Media cannot be attached while an issue is ${issue.status}`,
+    );
+  }
+
+  /**
+   * Proof is read by author: a file left behind by a previous volunteer does
+   * not count towards the current holder's resolution.
+   */
+  async countProofBy(issueId: string, volunteerId: string): Promise<number> {
+    const files = await this.bucket
+      .find({
+        'metadata.issueId': new Types.ObjectId(issueId),
+        'metadata.uploadedBy': new Types.ObjectId(volunteerId),
+        'metadata.purpose': MediaPurpose.PROOF,
+      })
+      .toArray();
+
+    return files.length;
   }
 
   private async findFile(mediaId: string): Promise<MediaFileDocument> {
