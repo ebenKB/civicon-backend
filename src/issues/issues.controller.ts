@@ -3,6 +3,8 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Patch,
   Post,
@@ -92,6 +94,9 @@ export class IssuesController {
   // The route is the intent: none of these takes a status, so a client cannot
   // ask for a transition that does not belong to it.
   @Post(':id/claim')
+  // 200, not the POST default of 201: these change an existing issue's
+  // state, they do not create a resource.
+  @HttpCode(HttpStatus.OK)
   @Roles(Role.CITIZEN)
   async claim(
     @Param('id', ParseObjectIdPipe) id: string,
@@ -111,6 +116,9 @@ export class IssuesController {
   }
 
   @Post(':id/start')
+  // 200, not the POST default of 201: these change an existing issue's
+  // state, they do not create a resource.
+  @HttpCode(HttpStatus.OK)
   async start(
     @Param('id', ParseObjectIdPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
@@ -119,6 +127,9 @@ export class IssuesController {
   }
 
   @Post(':id/resolution')
+  // 200, not the POST default of 201: these change an existing issue's
+  // state, they do not create a resource.
+  @HttpCode(HttpStatus.OK)
   async resolve(
     @Param('id', ParseObjectIdPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
