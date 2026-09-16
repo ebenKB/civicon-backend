@@ -59,6 +59,27 @@ export class Issue {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Issue' })
   duplicateOf?: Types.ObjectId;
 
+  // The citizen currently holding this issue. Cleared on release, so an
+  // unclaimed issue never carries a stale holder.
+  @Prop({
+    type: MongooseSchema.Types.ObjectId,
+    ref: 'User',
+    index: true,
+  })
+  volunteerId?: Types.ObjectId;
+
+  @Prop()
+  claimedAt?: Date;
+
+  @Prop({ trim: true, maxlength: 2000 })
+  resolutionNote?: string;
+
+  @Prop()
+  resolvedAt?: Date;
+
+  @Prop()
+  verifiedAt?: Date;
+
   // Supplied by `timestamps: true`. Declared without @Prop so they are typed on
   // the document without being redeclared as schema paths.
   createdAt: Date;

@@ -16,6 +16,11 @@ export interface PublicIssue {
   reportedBy: string;
   statusReason?: string;
   duplicateOf?: string;
+  volunteerId?: string;
+  claimedAt?: Date;
+  resolutionNote?: string;
+  resolvedAt?: Date;
+  verifiedAt?: Date;
   media: PublicMedia[];
   createdAt: Date;
   updatedAt: Date;
@@ -35,6 +40,11 @@ export function toPublicIssue(
     reportedBy: issue.reportedBy.toString(),
     statusReason: issue.statusReason,
     duplicateOf: issue.duplicateOf?.toString(),
+    volunteerId: issue.volunteerId?.toString(),
+    claimedAt: issue.claimedAt,
+    resolutionNote: issue.resolutionNote,
+    resolvedAt: issue.resolvedAt,
+    verifiedAt: issue.verifiedAt,
     media,
     createdAt: issue.createdAt,
     updatedAt: issue.updatedAt,

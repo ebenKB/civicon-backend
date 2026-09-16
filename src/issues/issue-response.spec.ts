@@ -32,6 +32,11 @@ describe('toPublicIssue', () => {
       reportedBy: reporterId.toString(),
       statusReason: undefined,
       duplicateOf: undefined,
+      volunteerId: undefined,
+      claimedAt: undefined,
+      resolutionNote: undefined,
+      resolvedAt: undefined,
+      verifiedAt: undefined,
       media: [],
       createdAt: new Date('2026-09-13T10:00:00Z'),
       updatedAt: new Date('2026-09-13T10:00:00Z'),
@@ -82,5 +87,12 @@ describe('toPublicIssue', () => {
 
   it('defaults to an empty array rather than omitting the field', () => {
     expect(toPublicIssue(issueDoc()).media).toEqual([]);
+  });
+  it('renders the volunteer id as a string', () => {
+    const volunteerId = new Types.ObjectId();
+
+    const result = toPublicIssue(issueDoc({ volunteerId }));
+
+    expect(result.volunteerId).toBe(volunteerId.toString());
   });
 });
