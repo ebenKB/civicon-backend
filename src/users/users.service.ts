@@ -83,4 +83,14 @@ export class UsersService {
       throw new NotFoundException(`User with id "${id}" not found`);
     }
   }
+
+  /**
+   * Written only by CivicPointsService, from a recomputed ledger sum. Not a
+   * general-purpose setter: nothing else should ever set a balance.
+   */
+  async setPointsCache(userId: string, total: number): Promise<void> {
+    await this.userModel
+      .updateOne({ _id: userId }, { $set: { civicPointsCached: total } })
+      .exec();
+  }
 }

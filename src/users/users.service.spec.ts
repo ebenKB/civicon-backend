@@ -18,6 +18,7 @@ describe('UsersService', () => {
     findOne: ReturnType<typeof vi.fn>;
     findByIdAndUpdate: ReturnType<typeof vi.fn>;
     findByIdAndDelete: ReturnType<typeof vi.fn>;
+    updateOne: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
@@ -28,6 +29,7 @@ describe('UsersService', () => {
       findOne: vi.fn(),
       findByIdAndUpdate: vi.fn(),
       findByIdAndDelete: vi.fn(),
+      updateOne: vi.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -114,5 +116,14 @@ describe('UsersService', () => {
       { roles: [Role.AGENCY] },
       { returnDocument: 'after', runValidators: true },
     );
+  });
+
+  it('sets the points cache to an absolute value, never an increment', async () => {
+    model.updateOne.mockReturnValue(execOf({}));
+
+    await service.setPointsCache('507f1f77bcf86cd799439011', 30);
+
+    const [, update] = model.updateOne.mock.calls[0];
+    expect(update).toEqual({ $set: { civicPointsCached: 30 } });
   });
 });

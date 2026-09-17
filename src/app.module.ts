@@ -11,6 +11,7 @@ import { MongoExceptionFilter } from './common/filters/mongo-exception.filter.js
 import { buildMongoUri } from './config/database.config.js';
 import { HelloModule } from './hello/hello.module.js';
 import { IssuesModule } from './issues/issues.module.js';
+import { PointsModule } from './points/points.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
@@ -31,6 +32,7 @@ import { UsersModule } from './users/users.module.js';
     UsersModule,
     AuthModule,
     IssuesModule,
+    PointsModule,
   ],
   controllers: [AppController],
   providers: [
