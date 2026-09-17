@@ -169,6 +169,15 @@ async function seed() {
         await db?.collection(name).deleteMany({});
       }
       report('--fresh: removed existing issue media');
+
+      // The ledger belongs to issues too: a fresh issue collection with a
+      // stale ledger would leave civicPointsCached disagreeing with reality.
+      const pointsResult = await db
+        ?.collection('point_transactions')
+        .deleteMany({});
+      report(
+        `--fresh: removed ${pointsResult?.deletedCount ?? 0} existing point transaction(s)`,
+      );
     }
 
     // Reporter emails resolve to ids here rather than being hard-coded, so the
