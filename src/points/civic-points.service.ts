@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
+import mongoose, { Model, Types } from 'mongoose';
 import {
   POINTS_PER_VERIFIED_RESOLUTION,
   PointsReason,
@@ -11,6 +11,8 @@ import {
   PointTransaction,
   PointTransactionDocument,
 } from './schemas/point-transaction.schema.js';
+
+const DUPLICATE_KEY = 11000;
 
 /**
  * Owns the ledger and the cache. Never touches an issue: the lifecycle service
@@ -34,8 +36,10 @@ export class CivicPointsService {
     }
 
     // The ledger is the idempotency key: a verify cycle or a double submit
-    // must not pay twice.
-    if ((await this.netFor(userId, issue._id.toString())) !== 0) {
+    // must not pay twice. The unique (userId, issueId, sequence) index below
+    // is what makes this hold under concurrency, not just serially.
+    const { total, count } = await this.netFor(userId, issue._id.toString());
+    if (total !== 0) {
       return;
     }
 
@@ -44,6 +48,7 @@ export class CivicPointsService {
       issue._id.toString(),
       POINTS_PER_VERIFIED_RESOLUTION,
       PointsReason.RESOLUTION_VERIFIED,
+      count,
     );
   }
 
@@ -53,8 +58,8 @@ export class CivicPointsService {
       return;
     }
 
-    const net = await this.netFor(userId, issue._id.toString());
-    if (net <= 0) {
+    const { total, count } = await this.netFor(userId, issue._id.toString());
+    if (total <= 0) {
       // Nothing was paid, or it has already been clawed back.
       return;
     }
@@ -62,8 +67,9 @@ export class CivicPointsService {
     await this.record(
       userId,
       issue._id.toString(),
-      -net,
+      -total,
       PointsReason.VERIFICATION_REVERSED,
+      count,
     );
   }
 
@@ -91,13 +97,28 @@ export class CivicPointsService {
     issueId: string,
     amount: number,
     reason: PointsReason,
+    sequence: number,
   ): Promise<void> {
-    await this.transactionModel.create({
-      userId: new Types.ObjectId(userId),
-      issueId: new Types.ObjectId(issueId),
-      amount,
-      reason,
-    });
+    try {
+      await this.transactionModel.create({
+        userId: new Types.ObjectId(userId),
+        issueId: new Types.ObjectId(issueId),
+        amount,
+        reason,
+        sequence,
+      });
+    } catch (error) {
+      if (
+        error instanceof mongoose.mongo.MongoServerError &&
+        error.code === DUPLICATE_KEY
+      ) {
+        // Lost the race: another writer already recorded this pair's
+        // sequence between our read and our write. Treat it as a no-op
+        // rather than double-paying or clawing back twice.
+        return;
+      }
+      throw error;
+    }
 
     // Recomputed, never incremented: an increment that fires twice would
     // corrupt the balance permanently and silently.
@@ -107,16 +128,28 @@ export class CivicPointsService {
     );
   }
 
-  private async netFor(userId: string, issueId: string): Promise<number> {
-    const [result] = await this.transactionModel.aggregate<{ total: number }>([
+  private async netFor(
+    userId: string,
+    issueId: string,
+  ): Promise<{ total: number; count: number }> {
+    const [result] = await this.transactionModel.aggregate<{
+      total: number;
+      count: number;
+    }>([
       {
         $match: {
           userId: new Types.ObjectId(userId),
           issueId: new Types.ObjectId(issueId),
         },
       },
-      { $group: { _id: null, total: { $sum: '$amount' } } },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+          count: { $sum: 1 },
+        },
+      },
     ]);
-    return result?.total ?? 0;
+    return { total: result?.total ?? 0, count: result?.count ?? 0 };
   }
 }

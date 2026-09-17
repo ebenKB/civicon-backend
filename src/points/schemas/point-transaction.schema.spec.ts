@@ -2,8 +2,8 @@ import { PointsReason } from '../../contracts/index.js';
 import { PointTransactionSchema } from './point-transaction.schema.js';
 
 describe('PointTransactionSchema', () => {
-  it('requires a user, an issue, an amount and a reason', () => {
-    for (const field of ['userId', 'issueId', 'amount', 'reason']) {
+  it('requires a user, an issue, an amount, a reason and a sequence', () => {
+    for (const field of ['userId', 'issueId', 'amount', 'reason', 'sequence']) {
       expect(PointTransactionSchema.path(field).isRequired).toBe(true);
     }
   });
@@ -24,6 +24,20 @@ describe('PointTransactionSchema', () => {
 
     expect(
       indexes.some(([spec]) => 'userId' in spec && 'issueId' in spec),
+    ).toBe(true);
+  });
+
+  it('uniquely indexes user, issue and sequence together, so a lost race is a no-op', () => {
+    const indexes = PointTransactionSchema.indexes();
+
+    expect(
+      indexes.some(
+        ([spec, options]) =>
+          'userId' in spec &&
+          'issueId' in spec &&
+          'sequence' in spec &&
+          options?.unique === true,
+      ),
     ).toBe(true);
   });
 });

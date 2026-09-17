@@ -1,6 +1,6 @@
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { PointsReason } from '../contracts/index.js';
 import { UsersService } from '../users/users.service.js';
 import { CivicPointsService } from './civic-points.service.js';
@@ -34,9 +34,14 @@ describe('CivicPointsService', () => {
     return chain;
   };
 
-  /** What the ledger currently nets for this (user, issue) pair. */
-  const ledgerNets = (total: number) =>
-    model.aggregate.mockResolvedValue(total === 0 ? [] : [{ total }]);
+  /**
+   * What the ledger currently nets for this (user, issue) pair, and how many
+   * rows already exist for it (the next row's `sequence`).
+   */
+  const ledgerNets = (total: number, count = total === 0 ? 0 : 1) =>
+    model.aggregate.mockResolvedValue(
+      total === 0 && count === 0 ? [] : [{ total, count }],
+    );
 
   beforeEach(async () => {
     model = { create: vi.fn(), find: vi.fn(), aggregate: vi.fn() };
@@ -103,10 +108,12 @@ describe('CivicPointsService', () => {
       expect(model.create).not.toHaveBeenCalled();
     });
 
+    // The ledger already holds an award (+10) and its reversal (-10): net
+    // zero, but from two real rows, not an untouched pair. A further
+    // reversal must still no-op.
     it('does nothing when already reversed', async () => {
-      ledgerNets(0);
+      ledgerNets(0, 2);
 
-      await service.reverseForVerification(issue(VOLUNTEER));
       await service.reverseForVerification(issue(VOLUNTEER));
 
       expect(model.create).not.toHaveBeenCalled();
@@ -123,6 +130,48 @@ describe('CivicPointsService', () => {
       await service.awardForVerification(issue(VOLUNTEER));
 
       expect(usersService.setPointsCache).toHaveBeenCalledWith(VOLUNTEER, 30);
+    });
+  });
+
+  describe('concurrency', () => {
+    // netFor() and create() are two round trips with no transaction across
+    // them: two concurrent calls for the same pair can both read net=0 and
+    // both attempt to write. The unique (userId, issueId, sequence) index is
+    // the only thing standing between that and a double-pay.
+    it("stamps the entry with the pair's existing row count as its sequence", async () => {
+      ledgerNets(10, 3);
+
+      await service.reverseForVerification(issue(VOLUNTEER));
+
+      const [entry] = model.create.mock.calls[0];
+      expect(entry.sequence).toBe(3);
+    });
+
+    it('treats a lost race (duplicate-key error on create) as a no-op', async () => {
+      ledgerNets(0);
+      model.create.mockRejectedValue(
+        new mongoose.mongo.MongoServerError({
+          message: 'E11000 duplicate key error',
+          code: 11000,
+        }),
+      );
+
+      await expect(
+        service.awardForVerification(issue(VOLUNTEER)),
+      ).resolves.toBeUndefined();
+
+      // The loser must not recompute or push a cache update: the winner's
+      // write already did that.
+      expect(usersService.setPointsCache).not.toHaveBeenCalled();
+    });
+
+    it('still throws on a create failure that is not a duplicate key', async () => {
+      ledgerNets(0);
+      model.create.mockRejectedValue(new Error('connection reset'));
+
+      await expect(
+        service.awardForVerification(issue(VOLUNTEER)),
+      ).rejects.toThrow('connection reset');
     });
   });
 
