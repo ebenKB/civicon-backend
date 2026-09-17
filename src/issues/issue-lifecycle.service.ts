@@ -3,9 +3,11 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
 } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { AiOutcome, IssueStatus } from '../contracts/index.js';
+import { CivicPointsService } from '../points/civic-points.service.js';
 import { ChangeStatusDto } from './dto/change-status.dto.js';
 import { ResolveIssueDto } from './dto/resolve-issue.dto.js';
 import { IssueMediaService } from './issue-media.service.js';
@@ -61,14 +63,21 @@ const AGENCY_TARGETS: readonly IssueStatus[] = [
  */
 @Injectable()
 export class IssueLifecycleService {
+  private readonly logger = new Logger(IssueLifecycleService.name);
+
   constructor(
     private readonly issuesService: IssuesService,
     private readonly issueMediaService: IssueMediaService,
     private readonly issueVerificationService: IssueVerificationService,
+    private readonly civicPointsService: CivicPointsService,
   ) {}
 
   async changeStatus(id: string, dto: ChangeStatusDto): Promise<IssueDocument> {
     const issue = await this.issuesService.findOne(id);
+
+    // Captured before the reassignment below: by the time points are settled,
+    // issue.status is already the new value.
+    const wasVerified = issue.status === IssueStatus.VERIFIED;
 
     if (!AGENCY_TARGETS.includes(dto.status)) {
       throw new ForbiddenException(
@@ -132,7 +141,23 @@ export class IssueLifecycleService {
 
     issue.status = dto.status;
     issue.statusReason = dto.reason;
-    return issue.save();
+    const saved = await issue.save();
+
+    // Points follow the status, and never block it: a ledger failure must not
+    // undo a decision an agency has already made.
+    if (dto.status === IssueStatus.VERIFIED) {
+      await this.settlePoints(() =>
+        this.civicPointsService.awardForVerification(saved),
+      );
+    }
+
+    if (dto.status === IssueStatus.IN_PROGRESS && wasVerified) {
+      await this.settlePoints(() =>
+        this.civicPointsService.reverseForVerification(saved),
+      );
+    }
+
+    return saved;
   }
 
   async resolve(
@@ -241,5 +266,15 @@ export class IssueLifecycleService {
     issue.resolutionNote = undefined;
     issue.status = IssueStatus.OPEN;
     return issue.save();
+  }
+
+  private async settlePoints(work: () => Promise<void>): Promise<void> {
+    try {
+      await work();
+    } catch (error) {
+      this.logger.error(
+        `Points settlement failed: ${error instanceof Error ? error.message : error}`,
+      );
+    }
   }
 }

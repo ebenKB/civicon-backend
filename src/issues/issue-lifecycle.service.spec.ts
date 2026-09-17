@@ -6,6 +6,7 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
 import { AiOutcome, IssueStatus } from '../contracts/index.js';
+import { CivicPointsService } from '../points/civic-points.service.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaService } from './issue-media.service.js';
 import { IssueVerificationService } from './issue-verification.service.js';
@@ -19,6 +20,10 @@ describe('IssueLifecycleService', () => {
   let issuesService: { findOne: ReturnType<typeof vi.fn> };
   let mediaService: { countProofBy: ReturnType<typeof vi.fn> };
   let verificationService: { assess: ReturnType<typeof vi.fn> };
+  let pointsService: {
+    awardForVerification: ReturnType<typeof vi.fn>;
+    reverseForVerification: ReturnType<typeof vi.fn>;
+  };
 
   const issueAt = (status: IssueStatus) => ({
     status,
@@ -31,6 +36,10 @@ describe('IssueLifecycleService', () => {
     issuesService = { findOne: vi.fn() };
     mediaService = { countProofBy: vi.fn().mockResolvedValue(1) };
     verificationService = { assess: vi.fn().mockResolvedValue(undefined) };
+    pointsService = {
+      awardForVerification: vi.fn(),
+      reverseForVerification: vi.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -41,6 +50,7 @@ describe('IssueLifecycleService', () => {
           provide: IssueVerificationService,
           useValue: verificationService,
         },
+        { provide: CivicPointsService, useValue: pointsService },
       ],
     }).compile();
 
@@ -554,6 +564,82 @@ describe('IssueLifecycleService', () => {
       await expect(
         service.changeStatus(ISSUE_ID, { status: IssueStatus.IN_PROGRESS }),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('points', () => {
+    const VOLUNTEER = '507f1f77bcf86cd799439044';
+
+    const at = (status: IssueStatus) => ({
+      status,
+      reportedBy: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      volunteerId: new Types.ObjectId(VOLUNTEER),
+      save: vi.fn().mockImplementation(function (this: unknown) {
+        return Promise.resolve(this);
+      }),
+    });
+
+    it('awards when an agency verifies a resolved issue', async () => {
+      issuesService.findOne.mockResolvedValue(at(IssueStatus.RESOLVED));
+
+      await service.changeStatus(ISSUE_ID, { status: IssueStatus.VERIFIED });
+
+      expect(pointsService.awardForVerification).toHaveBeenCalled();
+    });
+
+    it('awards when an agency confirms an AI approval', async () => {
+      issuesService.findOne.mockResolvedValue(at(IssueStatus.AI_APPROVED));
+
+      await service.changeStatus(ISSUE_ID, { status: IssueStatus.VERIFIED });
+
+      expect(pointsService.awardForVerification).toHaveBeenCalled();
+    });
+
+    it('awards nothing when the AI parks an issue in AI_APPROVED', async () => {
+      issuesService.findOne.mockResolvedValue(at(IssueStatus.IN_PROGRESS));
+      verificationService.assess.mockResolvedValue({
+        outcome: AiOutcome.APPROVED,
+        confidence: 0.9,
+        assessedAt: new Date(),
+      });
+
+      await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'x' });
+
+      expect(pointsService.awardForVerification).not.toHaveBeenCalled();
+    });
+
+    it('reverses when a verification is undone', async () => {
+      issuesService.findOne.mockResolvedValue(at(IssueStatus.VERIFIED));
+
+      await service.changeStatus(ISSUE_ID, {
+        status: IssueStatus.IN_PROGRESS,
+        reason: 'wrong',
+      });
+
+      expect(pointsService.reverseForVerification).toHaveBeenCalled();
+    });
+
+    it('does not reverse when sending back work that was never verified', async () => {
+      issuesService.findOne.mockResolvedValue(at(IssueStatus.RESOLVED));
+
+      await service.changeStatus(ISSUE_ID, {
+        status: IssueStatus.IN_PROGRESS,
+        reason: 'more work needed',
+      });
+
+      expect(pointsService.reverseForVerification).not.toHaveBeenCalled();
+    });
+
+    it('still changes the status when the points service throws', async () => {
+      issuesService.findOne.mockResolvedValue(at(IssueStatus.RESOLVED));
+      pointsService.awardForVerification.mockRejectedValue(new Error('down'));
+
+      const result = await service.changeStatus(ISSUE_ID, {
+        status: IssueStatus.VERIFIED,
+      });
+
+      // The status change is the decision; the ledger catches up.
+      expect(result.status).toBe(IssueStatus.VERIFIED);
     });
   });
 });
