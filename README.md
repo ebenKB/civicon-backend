@@ -259,16 +259,23 @@ reported problem is gone.
 
 | Confidence | Result |
 |---|---|
-| `fixed` and at or above 0.7 | `VERIFIED` automatically |
+| `fixed` and at or above 0.7 | `AI_APPROVED` — an agency confirms before anything is awarded |
 | anything else | stays `RESOLVED`, with the model's reasoning attached |
+
+**The model recommends; it does not pay.** An approval parks the issue in
+`AI_APPROVED`, where it awards nothing until an agency moves it to `VERIFIED`.
+The threshold decides which queue an issue lands in — "ready to confirm" against
+"needs real review" — not whether someone is paid.
 
 **The model can approve, but never reject.** A confident "not fixed" is recorded
 as `BELOW_THRESHOLD` and left for an agency — a false negative would cost a
 volunteer their credit on the model's say-so.
 
-**An agency can reverse an approval**: `PATCH /issues/:id/status` with
-`IN_PROGRESS` and a reason. It is the only way out of `VERIFIED`. The assessment
-stays on the issue, because what the model said and got wrong is worth keeping.
+**An agency can send an approval back for more work**: `PATCH /issues/:id/status`
+with `IN_PROGRESS` and a reason moves an `AI_APPROVED` issue — or a fully
+`VERIFIED` one — back to `IN_PROGRESS`; it is the only way out of `VERIFIED`.
+The assessment stays on the issue, because what the model said and got wrong is
+worth keeping.
 
 The check never blocks a resolution. With no before photo it records
 `SKIPPED_NO_BEFORE`; if the API fails or times out it records `FAILED`; either
@@ -285,6 +292,29 @@ AI_E2E=1 ANTHROPIC_API_KEY=sk-... npm run test:e2e
 
 Each assessment is one `claude-opus-5` vision call with up to four images, so
 cost scales with submissions rather than with agency review.
+
+### Civic points
+
+A verified resolution awards the volunteer **10 points**.
+
+| Route | Access |
+|---|---|
+| `GET /users/me/points` | any authenticated user — balance and recent transactions |
+
+Points are backed by an append-only `point_transactions` ledger.
+`civicPointsCached` on the user is **recomputed** from that ledger after every
+write, never incremented, so the cache cannot drift from the truth.
+
+A reversal writes a **negative entry**; the award is never deleted. After
+verifying and reversing, a volunteer sees two rows and a balance of zero — which
+is what makes a dropped balance explicable.
+
+Awarding is idempotent against the ledger, so the legal
+`VERIFIED → IN_PROGRESS → RESOLVED → VERIFIED` cycle pays once per verification
+rather than once per attempt.
+
+`reputation` is deliberately untouched — points measure output, and nothing yet
+reads reputation to gate anything.
 
 ### Media
 

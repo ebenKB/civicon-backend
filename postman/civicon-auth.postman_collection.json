@@ -5360,6 +5360,137 @@
       ]
     },
     {
+      "name": "Civic points",
+      "description": "Reads the volunteer's civic points balance. Run `npm run seed -- --fresh` first.\n\nAwarding is left out: it requires an agency to verify a resolution, and attaching proof needs a file selected in the UI, which a CLI run cannot supply.",
+      "item": [
+        {
+          "name": "Sign in as the volunteer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "The seeded volunteer signs in so the balance route can be called with their token.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"volunteer@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('volunteer_token', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My balance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/me/points",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "me",
+                "points"
+              ]
+            },
+            "description": "Any authenticated user can read their own balance and recent ledger entries.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{volunteer_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('has a numeric balance and a transaction list', () => {",
+                  "  pm.expect(json.balance).to.be.a('number');",
+                  "  pm.expect(json.transactions).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A balance needs a token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users/me/points",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "me",
+                "points"
+              ]
+            },
+            "description": "No token, no balance.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Guardrails",
       "description": "Every one of these is enforced server-side, not by hiding a control in a UI. Run this folder as a security regression suite — all requests assert their status code.",
       "item": [
