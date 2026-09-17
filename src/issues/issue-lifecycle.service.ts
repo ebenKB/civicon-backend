@@ -29,7 +29,11 @@ const ALLOWED_TRANSITIONS: ReadonlyMap<IssueStatus, readonly IssueStatus[]> =
       [IssueStatus.IN_PROGRESS, IssueStatus.RESOLVED, IssueStatus.OPEN],
     ],
     [IssueStatus.IN_PROGRESS, [IssueStatus.RESOLVED, IssueStatus.OPEN]],
-    [IssueStatus.RESOLVED, [IssueStatus.VERIFIED, IssueStatus.IN_PROGRESS]],
+    [
+      IssueStatus.RESOLVED,
+      [IssueStatus.VERIFIED, IssueStatus.IN_PROGRESS, IssueStatus.AI_APPROVED],
+    ],
+    [IssueStatus.AI_APPROVED, [IssueStatus.VERIFIED, IssueStatus.IN_PROGRESS]],
     // The only way out of VERIFIED, and only an agency has it. An auto-approval
     // becomes a payout once civic points exist, so the model's mistakes must be
     // undoable.
@@ -160,8 +164,9 @@ export class IssueLifecycleService {
       issue.aiAssessment = assessment;
 
       if (assessment.outcome === AiOutcome.APPROVED) {
-        issue.status = IssueStatus.VERIFIED;
-        issue.verifiedAt = new Date();
+        // The model recommends; it does not pay. An agency confirms before
+        // anything reaches VERIFIED, which is where points are awarded.
+        issue.status = IssueStatus.AI_APPROVED;
       }
     }
 

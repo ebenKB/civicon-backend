@@ -7,6 +7,7 @@ describe('IssueStatus', () => {
       'CLAIMED',
       'IN_PROGRESS',
       'RESOLVED',
+      'AI_APPROVED',
       'VERIFIED',
       'REJECTED',
       'DUPLICATE',

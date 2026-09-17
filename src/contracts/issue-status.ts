@@ -11,6 +11,12 @@ export enum IssueStatus {
   CLAIMED = 'CLAIMED',
   IN_PROGRESS = 'IN_PROGRESS',
   RESOLVED = 'RESOLVED',
+  /**
+   * The AI judged the work done, and nothing else has. Awards nothing: an
+   * agency confirms before any points move. Only the system puts an issue
+   * here — see AGENCY_TARGETS.
+   */
+  AI_APPROVED = 'AI_APPROVED',
   VERIFIED = 'VERIFIED',
   REJECTED = 'REJECTED',
   DUPLICATE = 'DUPLICATE',

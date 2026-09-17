@@ -422,6 +422,43 @@ describe('IssueLifecycleService', () => {
         ).rejects.toBeInstanceOf(ForbiddenException);
       },
     );
+
+    it('confirms an AI approval without needing a reason', async () => {
+      issuesService.findOne.mockResolvedValue({
+        ...resolved(),
+        status: IssueStatus.AI_APPROVED,
+      });
+
+      const result = await service.changeStatus(ISSUE_ID, {
+        status: IssueStatus.VERIFIED,
+      });
+
+      expect(result.status).toBe(IssueStatus.VERIFIED);
+      expect(result.verifiedAt).toBeInstanceOf(Date);
+    });
+
+    it('rejects an AI approval back to IN_PROGRESS, with a reason', async () => {
+      issuesService.findOne.mockResolvedValue({
+        ...resolved(),
+        status: IssueStatus.AI_APPROVED,
+      });
+
+      const result = await service.changeStatus(ISSUE_ID, {
+        status: IssueStatus.IN_PROGRESS,
+        reason: 'The model was fooled; the grate is still blocked',
+      });
+
+      expect(result.status).toBe(IssueStatus.IN_PROGRESS);
+    });
+
+    it('refuses an agency setting AI_APPROVED by hand', async () => {
+      issuesService.findOne.mockResolvedValue(resolved());
+
+      // Claiming the model said something it did not.
+      await expect(
+        service.changeStatus(ISSUE_ID, { status: IssueStatus.AI_APPROVED }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
   });
   describe('auto-approval', () => {
     const VOLUNTEER = '507f1f77bcf86cd799439044';
@@ -444,7 +481,7 @@ describe('IssueLifecycleService', () => {
       expect(result.aiAssessment).toBeUndefined();
     });
 
-    it('promotes to VERIFIED on APPROVED', async () => {
+    it('parks an AI approval in AI_APPROVED rather than verifying it', async () => {
       issuesService.findOne.mockResolvedValue(inProgress());
       verificationService.assess.mockResolvedValue({
         outcome: AiOutcome.APPROVED,
@@ -454,8 +491,9 @@ describe('IssueLifecycleService', () => {
 
       const result = await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'x' });
 
-      expect(result.status).toBe(IssueStatus.VERIFIED);
-      expect(result.verifiedAt).toBeInstanceOf(Date);
+      // The model may recommend. It may not pay.
+      expect(result.status).toBe(IssueStatus.AI_APPROVED);
+      expect(result.verifiedAt).toBeUndefined();
     });
 
     it.each([
