@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { UsersModule } from '../users/users.module.js';
+import { CivicPointsController } from './civic-points.controller.js';
 import { CivicPointsService } from './civic-points.service.js';
 import {
   PointTransaction,
@@ -14,6 +15,7 @@ import {
     ]),
     UsersModule,
   ],
+  controllers: [CivicPointsController],
   providers: [CivicPointsService],
   exports: [CivicPointsService],
 })
