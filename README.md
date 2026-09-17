@@ -162,7 +162,7 @@ postman collection run postman/civicon-auth.postman_collection.json \
   -e postman/civicon-local.postman_environment.json
 ```
 
-25 requests, 33 assertions. Sign-in requests capture their token into a
+74 requests, 102 assertions. Sign-in requests capture their token into a
 collection variable, so the rest of the collection authenticates itself. Each
 folder obtains its own tokens and registers users under randomised emails, so
 folders run independently and the collection can be re-run without a reseed.
@@ -232,13 +232,18 @@ evidence, and an agency confirms it.
 OPEN ──claim──▶ CLAIMED ──start──▶ IN_PROGRESS ──resolve──▶ RESOLVED ──verify──▶ VERIFIED
   ▲                │                     │                      │
   └────── release / force-release ───────┘         send back ───┘
+
+RESOLVED ──AI approves──▶ AI_APPROVED ──agency confirms──▶ VERIFIED
+                              │
+                              └──agency rejects──▶ IN_PROGRESS
 ```
 
 `IN_PROGRESS` is optional — a volunteer may resolve straight from `CLAIMED`.
 
 **A reporter cannot claim their own issue** (403). That is the anti-self-dealing
 rule: once civic points exist, reporting and resolving the same issue would be a
-way to pay yourself.
+way to pay yourself. The same rule blocks verification: **nobody can verify work
+they did themselves, even when they also hold the `AGENCY` role.**
 
 Photos carry a `purpose` derived from the issue's state, never from the request:
 uploaded while `OPEN` they are `REPORT`, uploaded by the holder they are
@@ -282,6 +287,8 @@ The check never blocks a resolution. With no before photo it records
 way the work is saved and an agency reviews it.
 
 `GET /issues?aiOutcome=BELOW_THRESHOLD` is the agency's review queue.
+`GET /issues?status=AI_APPROVED` is the agency's ready-to-confirm queue — the
+issues the model already recommended and are only waiting on a human.
 
 **The feature is off unless `ANTHROPIC_API_KEY` is set**, so the test suites run
 unchanged and cost nothing. One opt-in test calls the real API:
@@ -303,7 +310,13 @@ A verified resolution awards the volunteer **10 points**.
 
 Points are backed by an append-only `point_transactions` ledger.
 `civicPointsCached` on the user is **recomputed** from that ledger after every
-write, never incremented, so the cache cannot drift from the truth.
+write, so it never accumulates error — though under concurrent writes for the
+same user it can briefly trail the ledger until the next write. `GET
+/users/me/points` always reads the ledger directly, so it is never affected by
+that lag.
+
+Awards are not retroactive: issues verified before civic points existed carry
+no ledger rows.
 
 A reversal writes a **negative entry**; the award is never deleted. After
 verifying and reversing, a volunteer sees two rows and a balance of zero — which

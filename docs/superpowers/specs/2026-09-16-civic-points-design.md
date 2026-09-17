@@ -164,8 +164,9 @@ Nothing else is new. Awarding and reversing are consequences of a status change,
 not things a client requests, so they have no failure modes a caller sees.
 
 A failure inside the points service must not roll back a verification: the
-status change is the decision, and the ledger catches up. A failure is logged
-and the cache recomputes on the next write.
+status change is the decision, and the ledger catches up. A failed award or
+reversal is logged with the issue, the volunteer and the direction, for manual
+repair — there is no automatic reconciliation yet.
 
 ## 9. Testing
 
@@ -194,7 +195,7 @@ e2e:
 | Risk | Mitigation |
 |---|---|
 | A wrong auto-approval pays someone | Removed as a category: the AI cannot reach `VERIFIED`. A human confirms every payout. |
-| The cache drifts from the ledger | It is recomputed, never incremented, so drift is not expressible. |
+| The cache drifts from the ledger | Recomputed, never incremented, after every write, so it never accumulates error — though under concurrent writes for the same user it can briefly trail the ledger until the next write. `GET /users/me/points` always reads the ledger. |
 | Double awards from retries or a verify cycle | The ledger is the idempotency key; a duplicate is a no-op. |
 | Two accounts owned by one person | Anti-self-dealing stops the obvious case and nothing here can stop the determined one. Unchanged from B1, and worth revisiting only with real usage. |
 | `AI_APPROVED` becomes a queue nobody drains | Visible in any status listing and filterable. A demo-scale problem, not an architectural one. |

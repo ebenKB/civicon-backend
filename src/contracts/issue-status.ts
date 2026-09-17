@@ -1,10 +1,11 @@
 /**
- * The full arc an issue travels, declared in one place.
- *
- * CLAIMED, IN_PROGRESS, RESOLVED and VERIFIED are unreachable in the reporting
- * slice: nothing transitions into them yet. They are declared anyway so the
- * claim-and-resolution slice implements transitions rather than widening the
- * contract, and so stored data never needs an enum migration.
+ * The full arc an issue travels, declared in one place. A citizen reports
+ * OPEN; a volunteer CLAIMED it, moves it to IN_PROGRESS, and RESOLVED it with
+ * proof. From RESOLVED, an agency verifies directly, or the AI's assessment
+ * parks it in AI_APPROVED first — a recommendation, not a payout — where an
+ * agency still confirms to VERIFIED or sends it back to IN_PROGRESS. Points
+ * are awarded only on reaching VERIFIED, and only a human ever puts an issue
+ * there. REJECTED and DUPLICATE end the arc from OPEN.
  */
 export enum IssueStatus {
   OPEN = 'OPEN',
