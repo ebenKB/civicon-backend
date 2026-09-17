@@ -120,17 +120,19 @@ describe('IssuesController', () => {
       { title: 'Corrected' },
     );
   });
-  it('routes a status change through the lifecycle service', async () => {
+  it('routes a status change through the lifecycle service, passing the caller id', async () => {
     lifecycle.changeStatus.mockResolvedValue(issueDoc());
 
-    await controller.changeStatus('507f1f77bcf86cd799439011', {
-      status: IssueStatus.REJECTED,
-      reason: 'Out of scope',
-    });
+    await controller.changeStatus(
+      '507f1f77bcf86cd799439011',
+      { status: IssueStatus.REJECTED, reason: 'Out of scope' },
+      caller,
+    );
 
     expect(lifecycle.changeStatus).toHaveBeenCalledWith(
       '507f1f77bcf86cd799439011',
       { status: IssueStatus.REJECTED, reason: 'Out of scope' },
+      reporterId.toString(),
     );
   });
   it('fetches media for a whole page in one query, not one per issue', async () => {

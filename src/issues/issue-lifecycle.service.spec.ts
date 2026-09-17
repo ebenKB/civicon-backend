@@ -14,6 +14,10 @@ import { IssuesService } from './issues.service.js';
 
 const ISSUE_ID = '507f1f77bcf86cd799439011';
 const OTHER_ID = '507f1f77bcf86cd799439022';
+// The agency actor for changeStatus calls below. Distinct from every
+// volunteer id used in this file, so the self-verification check never
+// fires for behaviour these tests are not about.
+const ACTOR_ID = '507f1f77bcf86cd799439099';
 
 describe('IssueLifecycleService', () => {
   let service: IssueLifecycleService;
@@ -62,10 +66,14 @@ describe('IssueLifecycleService', () => {
       const issue = issueAt(IssueStatus.OPEN);
       issuesService.findOne.mockResolvedValue(issue);
 
-      const result = await service.changeStatus(ISSUE_ID, {
-        status: IssueStatus.REJECTED,
-        reason: 'Not a municipal responsibility',
-      });
+      const result = await service.changeStatus(
+        ISSUE_ID,
+        {
+          status: IssueStatus.REJECTED,
+          reason: 'Not a municipal responsibility',
+        },
+        ACTOR_ID,
+      );
 
       expect(result.status).toBe(IssueStatus.REJECTED);
       expect(result.statusReason).toBe('Not a municipal responsibility');
@@ -78,10 +86,14 @@ describe('IssueLifecycleService', () => {
         .mockResolvedValueOnce(issue)
         .mockResolvedValueOnce(issueAt(IssueStatus.OPEN));
 
-      const result = await service.changeStatus(ISSUE_ID, {
-        status: IssueStatus.DUPLICATE,
-        duplicateOf: OTHER_ID,
-      });
+      const result = await service.changeStatus(
+        ISSUE_ID,
+        {
+          status: IssueStatus.DUPLICATE,
+          duplicateOf: OTHER_ID,
+        },
+        ACTOR_ID,
+      );
 
       expect(result.status).toBe(IssueStatus.DUPLICATE);
       expect(result.duplicateOf?.toString()).toBe(OTHER_ID);
@@ -98,7 +110,7 @@ describe('IssueLifecycleService', () => {
         issuesService.findOne.mockResolvedValue(issueAt(IssueStatus.OPEN));
 
         await expect(
-          service.changeStatus(ISSUE_ID, { status: target }),
+          service.changeStatus(ISSUE_ID, { status: target }, ACTOR_ID),
         ).rejects.toBeInstanceOf(ConflictException);
       },
     );
@@ -107,7 +119,7 @@ describe('IssueLifecycleService', () => {
       issuesService.findOne.mockResolvedValue(issueAt(IssueStatus.REJECTED));
 
       await expect(
-        service.changeStatus(ISSUE_ID, { status: IssueStatus.OPEN }),
+        service.changeStatus(ISSUE_ID, { status: IssueStatus.OPEN }, ACTOR_ID),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -115,7 +127,7 @@ describe('IssueLifecycleService', () => {
       issuesService.findOne.mockResolvedValue(issueAt(IssueStatus.OPEN));
 
       await expect(
-        service.changeStatus(ISSUE_ID, { status: IssueStatus.OPEN }),
+        service.changeStatus(ISSUE_ID, { status: IssueStatus.OPEN }, ACTOR_ID),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -123,7 +135,11 @@ describe('IssueLifecycleService', () => {
       issuesService.findOne.mockResolvedValue(issueAt(IssueStatus.OPEN));
 
       await expect(
-        service.changeStatus(ISSUE_ID, { status: IssueStatus.VERIFIED }),
+        service.changeStatus(
+          ISSUE_ID,
+          { status: IssueStatus.VERIFIED },
+          ACTOR_ID,
+        ),
       ).rejects.toThrow(/OPEN.*VERIFIED/);
     });
   });
@@ -133,7 +149,11 @@ describe('IssueLifecycleService', () => {
       issuesService.findOne.mockResolvedValue(issueAt(IssueStatus.OPEN));
 
       await expect(
-        service.changeStatus(ISSUE_ID, { status: IssueStatus.REJECTED }),
+        service.changeStatus(
+          ISSUE_ID,
+          { status: IssueStatus.REJECTED },
+          ACTOR_ID,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -141,7 +161,11 @@ describe('IssueLifecycleService', () => {
       issuesService.findOne.mockResolvedValue(issueAt(IssueStatus.OPEN));
 
       await expect(
-        service.changeStatus(ISSUE_ID, { status: IssueStatus.DUPLICATE }),
+        service.changeStatus(
+          ISSUE_ID,
+          { status: IssueStatus.DUPLICATE },
+          ACTOR_ID,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -149,10 +173,14 @@ describe('IssueLifecycleService', () => {
       issuesService.findOne.mockResolvedValue(issueAt(IssueStatus.OPEN));
 
       await expect(
-        service.changeStatus(ISSUE_ID, {
-          status: IssueStatus.DUPLICATE,
-          duplicateOf: ISSUE_ID,
-        }),
+        service.changeStatus(
+          ISSUE_ID,
+          {
+            status: IssueStatus.DUPLICATE,
+            duplicateOf: ISSUE_ID,
+          },
+          ACTOR_ID,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -162,10 +190,14 @@ describe('IssueLifecycleService', () => {
         .mockRejectedValueOnce(new Error('Issue with id not found'));
 
       await expect(
-        service.changeStatus(ISSUE_ID, {
-          status: IssueStatus.DUPLICATE,
-          duplicateOf: OTHER_ID,
-        }),
+        service.changeStatus(
+          ISSUE_ID,
+          {
+            status: IssueStatus.DUPLICATE,
+            duplicateOf: OTHER_ID,
+          },
+          ACTOR_ID,
+        ),
       ).rejects.toThrow();
     });
   });
@@ -360,9 +392,13 @@ describe('IssueLifecycleService', () => {
     it('verifies a resolved issue', async () => {
       issuesService.findOne.mockResolvedValue(resolved());
 
-      const result = await service.changeStatus(ISSUE_ID, {
-        status: IssueStatus.VERIFIED,
-      });
+      const result = await service.changeStatus(
+        ISSUE_ID,
+        {
+          status: IssueStatus.VERIFIED,
+        },
+        ACTOR_ID,
+      );
 
       expect(result.status).toBe(IssueStatus.VERIFIED);
       expect(result.verifiedAt).toBeInstanceOf(Date);
@@ -373,10 +409,14 @@ describe('IssueLifecycleService', () => {
     it('sends work back to IN_PROGRESS with a reason, keeping the holder', async () => {
       issuesService.findOne.mockResolvedValue(resolved());
 
-      const result = await service.changeStatus(ISSUE_ID, {
-        status: IssueStatus.IN_PROGRESS,
-        reason: 'The grate is still blocked',
-      });
+      const result = await service.changeStatus(
+        ISSUE_ID,
+        {
+          status: IssueStatus.IN_PROGRESS,
+          reason: 'The grate is still blocked',
+        },
+        ACTOR_ID,
+      );
 
       expect(result.status).toBe(IssueStatus.IN_PROGRESS);
       expect(result.volunteerId?.toString()).toBe(VOLUNTEER);
@@ -387,7 +427,11 @@ describe('IssueLifecycleService', () => {
       issuesService.findOne.mockResolvedValue(resolved());
 
       await expect(
-        service.changeStatus(ISSUE_ID, { status: IssueStatus.IN_PROGRESS }),
+        service.changeStatus(
+          ISSUE_ID,
+          { status: IssueStatus.IN_PROGRESS },
+          ACTOR_ID,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -397,10 +441,14 @@ describe('IssueLifecycleService', () => {
         status: IssueStatus.CLAIMED,
       });
 
-      const result = await service.changeStatus(ISSUE_ID, {
-        status: IssueStatus.OPEN,
-        reason: 'No progress for a fortnight',
-      });
+      const result = await service.changeStatus(
+        ISSUE_ID,
+        {
+          status: IssueStatus.OPEN,
+          reason: 'No progress for a fortnight',
+        },
+        ACTOR_ID,
+      );
 
       expect(result.status).toBe(IssueStatus.OPEN);
       expect(result.volunteerId).toBeUndefined();
@@ -413,7 +461,7 @@ describe('IssueLifecycleService', () => {
       });
 
       await expect(
-        service.changeStatus(ISSUE_ID, { status: IssueStatus.OPEN }),
+        service.changeStatus(ISSUE_ID, { status: IssueStatus.OPEN }, ACTOR_ID),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -428,7 +476,7 @@ describe('IssueLifecycleService', () => {
         });
 
         await expect(
-          service.changeStatus(ISSUE_ID, { status: target }),
+          service.changeStatus(ISSUE_ID, { status: target }, ACTOR_ID),
         ).rejects.toBeInstanceOf(ForbiddenException);
       },
     );
@@ -439,9 +487,13 @@ describe('IssueLifecycleService', () => {
         status: IssueStatus.AI_APPROVED,
       });
 
-      const result = await service.changeStatus(ISSUE_ID, {
-        status: IssueStatus.VERIFIED,
-      });
+      const result = await service.changeStatus(
+        ISSUE_ID,
+        {
+          status: IssueStatus.VERIFIED,
+        },
+        ACTOR_ID,
+      );
 
       expect(result.status).toBe(IssueStatus.VERIFIED);
       expect(result.verifiedAt).toBeInstanceOf(Date);
@@ -453,10 +505,14 @@ describe('IssueLifecycleService', () => {
         status: IssueStatus.AI_APPROVED,
       });
 
-      const result = await service.changeStatus(ISSUE_ID, {
-        status: IssueStatus.IN_PROGRESS,
-        reason: 'The model was fooled; the grate is still blocked',
-      });
+      const result = await service.changeStatus(
+        ISSUE_ID,
+        {
+          status: IssueStatus.IN_PROGRESS,
+          reason: 'The model was fooled; the grate is still blocked',
+        },
+        ACTOR_ID,
+      );
 
       expect(result.status).toBe(IssueStatus.IN_PROGRESS);
     });
@@ -466,10 +522,64 @@ describe('IssueLifecycleService', () => {
 
       // Claiming the model said something it did not.
       await expect(
-        service.changeStatus(ISSUE_ID, { status: IssueStatus.AI_APPROVED }),
+        service.changeStatus(
+          ISSUE_ID,
+          { status: IssueStatus.AI_APPROVED },
+          ACTOR_ID,
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
+
+  // No one may verify their own work, even a volunteer who also holds the
+  // AGENCY role — the controller passes the caller's id regardless of role.
+  describe('anti-self-verification', () => {
+    const VOLUNTEER = '507f1f77bcf86cd799439044';
+
+    const resolvedAt = (status: IssueStatus) => ({
+      status,
+      reportedBy: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      volunteerId: new Types.ObjectId(VOLUNTEER),
+      resolvedAt: new Date(),
+      resolutionNote: 'Done',
+      save: vi.fn().mockImplementation(function (this: unknown) {
+        return Promise.resolve(this);
+      }),
+    });
+
+    it.each([IssueStatus.RESOLVED, IssueStatus.AI_APPROVED])(
+      'refuses a volunteer verifying their own %s issue, saving and awarding nothing',
+      async (status) => {
+        const issue = resolvedAt(status);
+        issuesService.findOne.mockResolvedValue(issue);
+
+        await expect(
+          service.changeStatus(
+            ISSUE_ID,
+            { status: IssueStatus.VERIFIED },
+            VOLUNTEER,
+          ),
+        ).rejects.toBeInstanceOf(ForbiddenException);
+
+        expect(issue.save).not.toHaveBeenCalled();
+        expect(pointsService.awardForVerification).not.toHaveBeenCalled();
+      },
+    );
+
+    it('still lets a different actor verify, and awards', async () => {
+      issuesService.findOne.mockResolvedValue(resolvedAt(IssueStatus.RESOLVED));
+
+      const result = await service.changeStatus(
+        ISSUE_ID,
+        { status: IssueStatus.VERIFIED },
+        ACTOR_ID,
+      );
+
+      expect(result.status).toBe(IssueStatus.VERIFIED);
+      expect(pointsService.awardForVerification).toHaveBeenCalled();
+    });
+  });
+
   describe('auto-approval', () => {
     const VOLUNTEER = '507f1f77bcf86cd799439044';
 
@@ -546,10 +656,14 @@ describe('IssueLifecycleService', () => {
     it('lets an agency undo an approval, with a reason', async () => {
       issuesService.findOne.mockResolvedValue(verified());
 
-      const result = await service.changeStatus(ISSUE_ID, {
-        status: IssueStatus.IN_PROGRESS,
-        reason: 'The culvert is still blocked',
-      });
+      const result = await service.changeStatus(
+        ISSUE_ID,
+        {
+          status: IssueStatus.IN_PROGRESS,
+          reason: 'The culvert is still blocked',
+        },
+        ACTOR_ID,
+      );
 
       expect(result.status).toBe(IssueStatus.IN_PROGRESS);
       expect(result.verifiedAt).toBeUndefined();
@@ -562,7 +676,11 @@ describe('IssueLifecycleService', () => {
       issuesService.findOne.mockResolvedValue(verified());
 
       await expect(
-        service.changeStatus(ISSUE_ID, { status: IssueStatus.IN_PROGRESS }),
+        service.changeStatus(
+          ISSUE_ID,
+          { status: IssueStatus.IN_PROGRESS },
+          ACTOR_ID,
+        ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
@@ -571,6 +689,7 @@ describe('IssueLifecycleService', () => {
     const VOLUNTEER = '507f1f77bcf86cd799439044';
 
     const at = (status: IssueStatus) => ({
+      _id: new Types.ObjectId(ISSUE_ID),
       status,
       reportedBy: new Types.ObjectId('507f1f77bcf86cd799439011'),
       volunteerId: new Types.ObjectId(VOLUNTEER),
@@ -582,7 +701,11 @@ describe('IssueLifecycleService', () => {
     it('awards when an agency verifies a resolved issue', async () => {
       issuesService.findOne.mockResolvedValue(at(IssueStatus.RESOLVED));
 
-      await service.changeStatus(ISSUE_ID, { status: IssueStatus.VERIFIED });
+      await service.changeStatus(
+        ISSUE_ID,
+        { status: IssueStatus.VERIFIED },
+        ACTOR_ID,
+      );
 
       expect(pointsService.awardForVerification).toHaveBeenCalled();
     });
@@ -590,7 +713,11 @@ describe('IssueLifecycleService', () => {
     it('awards when an agency confirms an AI approval', async () => {
       issuesService.findOne.mockResolvedValue(at(IssueStatus.AI_APPROVED));
 
-      await service.changeStatus(ISSUE_ID, { status: IssueStatus.VERIFIED });
+      await service.changeStatus(
+        ISSUE_ID,
+        { status: IssueStatus.VERIFIED },
+        ACTOR_ID,
+      );
 
       expect(pointsService.awardForVerification).toHaveBeenCalled();
     });
@@ -611,10 +738,14 @@ describe('IssueLifecycleService', () => {
     it('reverses when a verification is undone', async () => {
       issuesService.findOne.mockResolvedValue(at(IssueStatus.VERIFIED));
 
-      await service.changeStatus(ISSUE_ID, {
-        status: IssueStatus.IN_PROGRESS,
-        reason: 'wrong',
-      });
+      await service.changeStatus(
+        ISSUE_ID,
+        {
+          status: IssueStatus.IN_PROGRESS,
+          reason: 'wrong',
+        },
+        ACTOR_ID,
+      );
 
       expect(pointsService.reverseForVerification).toHaveBeenCalled();
     });
@@ -622,24 +753,41 @@ describe('IssueLifecycleService', () => {
     it('does not reverse when sending back work that was never verified', async () => {
       issuesService.findOne.mockResolvedValue(at(IssueStatus.RESOLVED));
 
-      await service.changeStatus(ISSUE_ID, {
-        status: IssueStatus.IN_PROGRESS,
-        reason: 'more work needed',
-      });
+      await service.changeStatus(
+        ISSUE_ID,
+        {
+          status: IssueStatus.IN_PROGRESS,
+          reason: 'more work needed',
+        },
+        ACTOR_ID,
+      );
 
       expect(pointsService.reverseForVerification).not.toHaveBeenCalled();
     });
 
-    it('still changes the status when the points service throws', async () => {
-      issuesService.findOne.mockResolvedValue(at(IssueStatus.RESOLVED));
+    it('still changes the status when the points service throws, logging the issue for manual repair', async () => {
+      const issue = at(IssueStatus.RESOLVED);
+      issuesService.findOne.mockResolvedValue(issue);
       pointsService.awardForVerification.mockRejectedValue(new Error('down'));
+      const errorSpy = vi.spyOn(
+        (service as unknown as { logger: { error: typeof vi.fn } }).logger,
+        'error',
+      );
 
-      const result = await service.changeStatus(ISSUE_ID, {
-        status: IssueStatus.VERIFIED,
-      });
+      const result = await service.changeStatus(
+        ISSUE_ID,
+        { status: IssueStatus.VERIFIED },
+        ACTOR_ID,
+      );
 
       // The status change is the decision; the ledger catches up.
       expect(result.status).toBe(IssueStatus.VERIFIED);
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `Points award failed for issue ${issue._id} (volunteer ${issue.volunteerId})`,
+        ),
+        expect.stringContaining('Error: down'),
+      );
     });
   });
 });

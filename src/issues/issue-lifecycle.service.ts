@@ -72,7 +72,11 @@ export class IssueLifecycleService {
     private readonly civicPointsService: CivicPointsService,
   ) {}
 
-  async changeStatus(id: string, dto: ChangeStatusDto): Promise<IssueDocument> {
+  async changeStatus(
+    id: string,
+    dto: ChangeStatusDto,
+    actorId: string,
+  ): Promise<IssueDocument> {
     const issue = await this.issuesService.findOne(id);
 
     // Captured before the reassignment below: by the time points are settled,
@@ -88,6 +92,17 @@ export class IssueLifecycleService {
     // A move to the current status is refused rather than ignored: silently
     // accepting it would hide a client bug.
     this.assertTransition(issue.status, dto.status);
+
+    // No one may verify their own work. Holds from both RESOLVED and
+    // AI_APPROVED, and applies even to a volunteer who also holds the AGENCY
+    // role. The reporter and the volunteer's own IN_PROGRESS/OPEN moves are
+    // untouched — neither of those pays the actor.
+    if (
+      dto.status === IssueStatus.VERIFIED &&
+      issue.volunteerId?.toString() === actorId
+    ) {
+      throw new ForbiddenException('You cannot verify work you did yourself');
+    }
 
     // Both of these overrule a volunteer, so both must be explained.
     if (
@@ -146,13 +161,13 @@ export class IssueLifecycleService {
     // Points follow the status, and never block it: a ledger failure must not
     // undo a decision an agency has already made.
     if (dto.status === IssueStatus.VERIFIED) {
-      await this.settlePoints(() =>
+      await this.settlePoints('award', saved, () =>
         this.civicPointsService.awardForVerification(saved),
       );
     }
 
     if (dto.status === IssueStatus.IN_PROGRESS && wasVerified) {
-      await this.settlePoints(() =>
+      await this.settlePoints('reverse', saved, () =>
         this.civicPointsService.reverseForVerification(saved),
       );
     }
@@ -268,12 +283,24 @@ export class IssueLifecycleService {
     return issue.save();
   }
 
-  private async settlePoints(work: () => Promise<void>): Promise<void> {
+  /**
+   * Runs a points-ledger write and never lets it undo or block the status
+   * change that already happened. A failure is logged with enough context
+   * — the issue, the volunteer, and which direction — to repair by hand;
+   * there is no automatic reconciliation.
+   */
+  private async settlePoints(
+    direction: 'award' | 'reverse',
+    issue: IssueDocument,
+    work: () => Promise<void>,
+  ): Promise<void> {
     try {
       await work();
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
       this.logger.error(
-        `Points settlement failed: ${error instanceof Error ? error.message : error}`,
+        `Points ${direction} failed for issue ${issue._id} (volunteer ${issue.volunteerId}): ${message}`,
+        error instanceof Error ? error.stack : undefined,
       );
     }
   }

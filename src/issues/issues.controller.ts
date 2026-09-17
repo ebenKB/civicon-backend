@@ -86,9 +86,14 @@ export class IssuesController {
   async changeStatus(
     @Param('id', ParseObjectIdPipe) id: string,
     @Body() changeStatusDto: ChangeStatusDto,
+    @CurrentUser() user: AuthenticatedUser,
   ) {
     return toPublicIssue(
-      await this.issueLifecycleService.changeStatus(id, changeStatusDto),
+      await this.issueLifecycleService.changeStatus(
+        id,
+        changeStatusDto,
+        user.id,
+      ),
     );
   }
   // The route is the intent: none of these takes a status, so a client cannot

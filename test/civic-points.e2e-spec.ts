@@ -188,4 +188,26 @@ describe('Civic points (e2e)', () => {
   it('refuses an anonymous balance request', async () => {
     await request(app.getHttpServer()).get('/users/me/points').expect(401);
   });
+
+  // A volunteer who also holds AGENCY cannot approve their own work merely by
+  // having the role the route checks. This changes the volunteer's roles for
+  // the rest of the run, so it runs last.
+  it('refuses a volunteer who also holds AGENCY from verifying their own resolved issue', async () => {
+    await connection
+      .collection('users')
+      .updateOne(
+        { email: 'v@x.test' },
+        { $set: { roles: [Role.CITIZEN, Role.AGENCY] } },
+      );
+    const dualRoleToken = await login('v@x.test');
+
+    await request(app.getHttpServer())
+      .patch(`/issues/${issueId}/status`)
+      .set(auth(dualRoleToken))
+      .send({ status: IssueStatus.VERIFIED })
+      .expect(403);
+
+    const res = await points().expect(200);
+    expect(res.body.balance).toBe(0);
+  });
 });
