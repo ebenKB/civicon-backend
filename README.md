@@ -282,9 +282,18 @@ with `IN_PROGRESS` and a reason moves an `AI_APPROVED` issue — or a fully
 The assessment stays on the issue, because what the model said and got wrong is
 worth keeping.
 
-The check never blocks a resolution. With no before photo it records
-`SKIPPED_NO_BEFORE`; if the API fails or times out it records `FAILED`; either
-way the work is saved and an agency reviews it.
+**A side proved only by video still gets assessed.** The API takes images, so a
+side holding no photograph contributes two stills pulled from its video instead —
+sampled at the midpoint and near the end, where the finished state is. Decoding
+is capped at 15 seconds and only happens when that side has no photograph, so the
+common case never touches ffmpeg. The binary ships with `ffmpeg-static`; nothing
+needs installing.
+
+The check never blocks a resolution. With no before photo — and no video to take
+one from — it records `SKIPPED_NO_BEFORE`; if the proof cannot be read as an
+image, or the API fails or times out, it records `FAILED`. Either way the work is
+saved and an agency reviews it. Neither case calls the API, so an unreadable
+proof costs nothing.
 
 `GET /issues?aiOutcome=BELOW_THRESHOLD` is the agency's review queue.
 `GET /issues?status=AI_APPROVED` is the agency's ready-to-confirm queue — the

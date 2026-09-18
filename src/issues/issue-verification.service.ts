@@ -95,6 +95,15 @@ export class IssueVerificationService {
       };
     }
 
+    // Resolving requires proof, so this side is empty only when the proof was a
+    // video that could not be decoded. Sending the request anyway would ask the
+    // model to judge a repair it is shown no picture of, and pay for the "no".
+    if (after.length === 0) {
+      return this.failed(
+        'The proof could not be read as an image, so the work was not assessed.',
+      );
+    }
+
     try {
       const response = await this.client.messages.parse({
         model: AI_MODEL,

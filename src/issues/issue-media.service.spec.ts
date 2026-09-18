@@ -12,6 +12,13 @@ import { Types } from 'mongoose';
 import { IssueStatus, MediaPurpose } from '../contracts/index.js';
 import { IssueMediaService } from './issue-media.service.js';
 import { IssuesService } from './issues.service.js';
+import { extractFrames } from './video-frames.js';
+
+// Decoding is exercised against a real clip in video-frames.spec.ts. What this
+// file tests is which files reach the decoder, so the decoder itself is a stub.
+vi.mock('./video-frames.js', () => ({ extractFrames: vi.fn() }));
+
+const extractFramesMock = vi.mocked(extractFrames);
 
 const REPORTER = '507f1f77bcf86cd799439011';
 const STRANGER = '507f1f77bcf86cd799439099';
@@ -265,6 +272,7 @@ describe('IssueMediaService', () => {
 
     beforeEach(() => {
       bucket.openDownloadStream = vi.fn(() => asStream());
+      extractFramesMock.mockReset();
     });
 
     it('splits the reporter photos from the current holder proof', async () => {
@@ -310,14 +318,49 @@ describe('IssueMediaService', () => {
       expect(result.before).toHaveLength(2);
     });
 
-    it('skips video: the model is given photographs', async () => {
+    // A side proved only by video used to yield nothing, which meant an
+    // assessment against no evidence at all.
+    it('falls back to frames from a video when a side has no photographs', async () => {
+      extractFramesMock.mockResolvedValue([
+        Buffer.from('frame-one'),
+        Buffer.from('frame-two'),
+      ]);
       bucket.find.mockReturnValue(
         cursorOf([withPurpose(MediaPurpose.REPORT, REPORTER, 'video/mp4')]),
       );
 
       const result = await service.readForAssessment(ISSUE_ID, STRANGER, 2);
 
-      expect(result.before).toHaveLength(0);
+      expect(result.before).toHaveLength(2);
+      expect(result.before[0]).toEqual({
+        base64: Buffer.from('frame-one').toString('base64'),
+        contentType: 'image/jpeg',
+      });
+    });
+
+    it('prefers photographs and leaves the video undecoded', async () => {
+      bucket.find.mockReturnValue(
+        cursorOf([
+          withPurpose(MediaPurpose.REPORT, REPORTER),
+          withPurpose(MediaPurpose.REPORT, REPORTER, 'video/mp4'),
+        ]),
+      );
+
+      const result = await service.readForAssessment(ISSUE_ID, STRANGER, 2);
+
+      expect(result.before).toHaveLength(1);
+      expect(extractFramesMock).not.toHaveBeenCalled();
+    });
+
+    it('yields nothing for a side whose video cannot be decoded', async () => {
+      extractFramesMock.mockResolvedValue([]);
+      bucket.find.mockReturnValue(
+        cursorOf([withPurpose(MediaPurpose.PROOF, STRANGER, 'video/webm')]),
+      );
+
+      const result = await service.readForAssessment(ISSUE_ID, STRANGER, 2);
+
+      expect(result.after).toHaveLength(0);
     });
   });
 });

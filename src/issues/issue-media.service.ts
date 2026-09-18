@@ -28,6 +28,7 @@ import {
 } from './issue-media-response.js';
 import { MediaStream, UploadedFile } from './issue-media.types.js';
 import { IssuesService } from './issues.service.js';
+import { extractFrames } from './video-frames.js';
 
 export interface MediaBytes {
   base64: string;
@@ -252,8 +253,9 @@ export class IssueMediaService implements OnModuleInit {
    * The evidence pair, ready for a vision request. Kept here rather than in the
    * verification service so GridFS stays named in exactly one file.
    *
-   * Video is excluded: the model is given photographs, and a 50MB clip would
-   * not survive base64 encoding into a request anyway.
+   * A 50MB clip cannot be sent as it stands — the API takes images — so a side
+   * proved only by video contributes stills instead. Photographs win when a
+   * side has any: decoding costs seconds a volunteer spends waiting.
    */
   async readForAssessment(
     issueId: string,
@@ -264,36 +266,64 @@ export class IssueMediaService implements OnModuleInit {
       .find({ 'metadata.issueId': new Types.ObjectId(issueId) })
       .toArray()) as unknown as MediaFileDocument[];
 
-    const isImage = (file: MediaFileDocument) =>
-      (file.metadata?.contentType ?? '').startsWith('image/');
+    const isReport = (file: MediaFileDocument) =>
+      file.metadata?.purpose === MediaPurpose.REPORT;
 
-    const before = files
-      .filter((f) => f.metadata?.purpose === MediaPurpose.REPORT && isImage(f))
+    const isProofByHolder = (file: MediaFileDocument) =>
+      file.metadata?.purpose === MediaPurpose.PROOF &&
+      file.metadata?.uploadedBy?.toString() === volunteerId;
+
+    const [before, after] = await Promise.all([
+      this.sideFor(files.filter(isReport), perSide),
+      this.sideFor(files.filter(isProofByHolder), perSide),
+    ]);
+
+    return { before, after };
+  }
+
+  /**
+   * One side of the comparison. Falls back to video frames only when the side
+   * holds no photograph at all, so the common case never touches ffmpeg.
+   */
+  private async sideFor(
+    files: MediaFileDocument[],
+    perSide: number,
+  ): Promise<MediaBytes[]> {
+    const typeOf = (file: MediaFileDocument) =>
+      file.metadata?.contentType ?? '';
+
+    const images = files
+      .filter((file) => typeOf(file).startsWith('image/'))
       .slice(0, perSide);
 
-    const after = files
-      .filter(
-        (f) =>
-          f.metadata?.purpose === MediaPurpose.PROOF &&
-          f.metadata?.uploadedBy?.toString() === volunteerId &&
-          isImage(f),
-      )
-      .slice(0, perSide);
+    if (images.length > 0) {
+      return Promise.all(images.map((file) => this.toBytes(file)));
+    }
 
-    return {
-      before: await Promise.all(before.map((f) => this.toBytes(f))),
-      after: await Promise.all(after.map((f) => this.toBytes(f))),
-    };
+    const [video] = files.filter((file) => typeOf(file).startsWith('video/'));
+    if (!video) {
+      return [];
+    }
+
+    const frames = await extractFrames(await this.toBuffer(video), perSide);
+    return frames.map((frame) => ({
+      base64: frame.toString('base64'),
+      contentType: 'image/jpeg',
+    }));
   }
 
   private async toBytes(file: MediaFileDocument): Promise<MediaBytes> {
+    return {
+      base64: (await this.toBuffer(file)).toString('base64'),
+      contentType: file.metadata?.contentType ?? 'image/png',
+    };
+  }
+
+  private async toBuffer(file: MediaFileDocument): Promise<Buffer> {
     const chunks: Buffer[] = [];
     for await (const chunk of this.bucket.openDownloadStream(file._id)) {
       chunks.push(chunk as Buffer);
     }
-    return {
-      base64: Buffer.concat(chunks).toString('base64'),
-      contentType: file.metadata?.contentType ?? 'image/png',
-    };
+    return Buffer.concat(chunks);
   }
 }

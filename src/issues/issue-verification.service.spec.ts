@@ -135,6 +135,23 @@ describe('IssueVerificationService', () => {
       expect(parse).not.toHaveBeenCalled();
     });
 
+    // Proof is required to resolve, so an empty after side means the only
+    // evidence was a video nothing could read. Asking the model to judge a
+    // repair it is shown no picture of costs a paid call to be told "no".
+    it('fails without calling the API when no proof image could be read', async () => {
+      mediaService.readForAssessment.mockResolvedValue({
+        before: [anImage],
+        after: [],
+      });
+      const service = await serviceWith(enabled);
+
+      const result = await service.assess(issue());
+
+      expect(result?.outcome).toBe(AiOutcome.FAILED);
+      expect(result?.reasoning).toContain('proof');
+      expect(parse).not.toHaveBeenCalled();
+    });
+
     it('records a thrown API error as FAILED rather than propagating', async () => {
       parse.mockRejectedValue(new Error('upstream exploded'));
       const service = await serviceWith(enabled);
