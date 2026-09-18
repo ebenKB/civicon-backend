@@ -85,6 +85,27 @@ export class UsersService {
   }
 
   /**
+   * Display names for a set of ids, in one query — a page of issues resolves
+   * every volunteer at once rather than one lookup per row.
+   *
+   * Only `name` is selected. This feeds a public, token-free response, so
+   * widening it to the whole document would leak email addresses.
+   */
+  async namesFor(ids: string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(ids)];
+    if (unique.length === 0) {
+      return new Map();
+    }
+
+    const users = await this.userModel
+      .find({ _id: { $in: unique } })
+      .select('name')
+      .exec();
+
+    return new Map(users.map((user) => [user._id.toString(), user.name]));
+  }
+
+  /**
    * Written only by CivicPointsService, from a recomputed ledger sum. Not a
    * general-purpose setter: nothing else should ever set a balance.
    */

@@ -126,4 +126,56 @@ describe('UsersService', () => {
     const [, update] = model.updateOne.mock.calls[0];
     expect(update).toEqual({ $set: { civicPointsCached: 30 } });
   });
+
+  describe('namesFor', () => {
+    const select = vi.fn();
+
+    // One query for a whole page of issues, not one per volunteer.
+    it('looks every id up in a single query', async () => {
+      select.mockReturnValue(execOf([]));
+      model.find.mockReturnValue({ select });
+
+      await service.namesFor([
+        '507f1f77bcf86cd799439011',
+        '507f1f77bcf86cd799439012',
+      ]);
+
+      expect(model.find).toHaveBeenCalledTimes(1);
+      const [filter] = model.find.mock.calls[0];
+      expect(filter._id.$in).toHaveLength(2);
+      expect(select).toHaveBeenCalledWith('name');
+    });
+
+    it('maps each id to its name', async () => {
+      select.mockReturnValue(
+        execOf([{ _id: '507f1f77bcf86cd799439011', name: 'Kofi Volunteer' }]),
+      );
+      model.find.mockReturnValue({ select });
+
+      const names = await service.namesFor(['507f1f77bcf86cd799439011']);
+
+      expect(names.get('507f1f77bcf86cd799439011')).toBe('Kofi Volunteer');
+    });
+
+    // A page where nobody has claimed anything must not hit the database.
+    it('asks nothing when there are no ids', async () => {
+      const names = await service.namesFor([]);
+
+      expect(names.size).toBe(0);
+      expect(model.find).not.toHaveBeenCalled();
+    });
+
+    it('ignores a repeated id rather than querying for it twice', async () => {
+      select.mockReturnValue(execOf([]));
+      model.find.mockReturnValue({ select });
+
+      await service.namesFor([
+        '507f1f77bcf86cd799439011',
+        '507f1f77bcf86cd799439011',
+      ]);
+
+      const [filter] = model.find.mock.calls[0];
+      expect(filter._id.$in).toHaveLength(1);
+    });
+  });
 });

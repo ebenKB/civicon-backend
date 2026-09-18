@@ -126,7 +126,7 @@ describe('AI proof verification (e2e, feature off)', () => {
 
     expect(reversed.body.status).toBe(IssueStatus.IN_PROGRESS);
     expect(reversed.body.verifiedAt).toBeUndefined();
-    expect(reversed.body.volunteerId).toBe(resolved.body.volunteerId);
+    expect(reversed.body.volunteer.id).toBe(resolved.body.volunteer.id);
   });
 
   it('refuses a reversal with no reason', async () => {

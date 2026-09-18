@@ -222,7 +222,10 @@ Every issue endpoint returns this exact shape. Optional fields are absent (not
 
   statusReason?: string       // why an agency rejected / overruled
   duplicateOf?: string        // issue id, when status is DUPLICATE
-  volunteerId?: string        // who holds it
+  volunteer?: {               // who holds it, named
+    id: string
+    name?: string             // absent if the account was deleted
+  }
   claimedAt?: string
   resolutionNote?: string     // what the volunteer says they did
   resolvedAt?: string
@@ -234,11 +237,18 @@ Every issue endpoint returns this exact shape. Optional fields are absent (not
 }
 ```
 
-There are no user names on an issue — only `reportedBy` and `volunteerId` ids. To
-show "Reported by Ama" you need a separate lookup, and there is **no public
-endpoint for another user's profile** (`GET /users/:id` is admin-only). For now,
-show ids, show "you" when it matches the signed-in user, or ask the backend for
-an embedded name.
+**The volunteer is named; the reporter is not.** That asymmetry is deliberate.
+`GET /issues` is public, so a name beside every report would tell anyone who
+complained about what — a real risk when the report names a hazard or someone's
+negligence. A volunteer is a public actor by choice: the points they earn are
+credit for exactly this work.
+
+So `reportedBy` stays a bare id and there is **no public endpoint for another
+user's profile** (`GET /users/:id` is admin-only). Render "you" when
+`reportedBy` matches the signed-in user's id, and otherwise leave the reporter
+anonymous. If an agency ever needs to contact a reporter, that's an
+authenticated, role-gated endpoint — ask for it rather than expecting the name
+in this payload.
 
 ### GET /issues — public
 
@@ -249,7 +259,7 @@ The main feed. Newest first.
 | `status` | any `IssueStatus` |
 | `category` | any `IssueCategory` |
 | `reportedBy` | user id |
-| `volunteerId` | user id |
+| `volunteerId` | user id (the query parameter keeps this name) |
 | `aiOutcome` | any `AiOutcome` |
 | `limit` | 1–100, **default 20** |
 | `offset` | 0 or more, default 0 |
@@ -338,7 +348,7 @@ entitled to.
 | Route | Who | Effect | Common errors |
 |---|---|---|---|
 | `POST /issues/:id/claim` | any CITIZEN except the reporter | OPEN → CLAIMED | **409** already claimed · **403** you reported it · **409** not OPEN |
-| `DELETE /issues/:id/claim` | the holder | back to OPEN; clears `volunteerId`, `claimedAt`, `resolvedAt`, `resolutionNote` | **403** not the holder |
+| `DELETE /issues/:id/claim` | the holder | back to OPEN; clears `volunteer`, `claimedAt`, `resolvedAt`, `resolutionNote` | **403** not the holder |
 | `POST /issues/:id/start` | the holder | CLAIMED → IN_PROGRESS | **403** not the holder |
 | `POST /issues/:id/resolution` | the holder | → RESOLVED (or AI_APPROVED) | **400** no proof photo · **403** not the holder |
 
@@ -398,7 +408,7 @@ evidence, the second needs a volunteer, the third belongs to the AI.
   issue still carries the old verdict. Don't render it as current: check
   `status` first, and only show the assessment on a `RESOLVED` or `AI_APPROVED`
   issue.
-- `OPEN` (force-release) clears `volunteerId`, `claimedAt`, `resolvedAt` and
+- `OPEN` (force-release) clears `volunteer`, `claimedAt`, `resolvedAt` and
   `resolutionNote`. The issue is free for anyone to claim again.
 - `statusReason` is **overwritten on every status change** — including with
   nothing when no `reason` is sent, as on `VERIFIED`. Never assume a
@@ -411,7 +421,7 @@ who fixed the issue themselves gets:
 { "statusCode": 403, "message": "You cannot verify work you did yourself", "error": "Forbidden" }
 ```
 
-Hide the confirm button when `issue.volunteerId === currentUser.id`.
+Hide the confirm button when `issue.volunteer?.id === currentUser.id`.
 
 Other failures: **409** `"Cannot move an issue from X to Y"` (the issue moved
 under you — refetch) · **400** a missing `reason` or `duplicateOf`.
@@ -636,7 +646,7 @@ A build order that follows what the API actually supports.
    from `createdAt` / `claimedAt` / `resolvedAt` / `verifiedAt`, plus
    `statusReason` when present.
 5. **Volunteer flow** — Claim → Start → upload proof → Resolve. Drive the buttons
-   from `status` + `volunteerId` (see the matrix below).
+   from `status` + `volunteer?.id` (see the matrix below).
 6. **My work** — `?volunteerId=<me>` and `?reportedBy=<me>`.
 7. **Points** — `GET /users/me/points`, balance plus history.
 8. **Agency console** — `?status=AI_APPROVED` as the main queue, `?status=RESOLVED`
@@ -650,12 +660,12 @@ Let `me` be the signed-in user and `i` the issue:
 | Button | Show when |
 |---|---|
 | Edit | `i.reportedBy === me.id && i.status === 'OPEN'` |
-| Add photo | `(i.status === 'OPEN' && i.reportedBy === me.id) \|\| (['CLAIMED','IN_PROGRESS'].includes(i.status) && i.volunteerId === me.id)`, and fewer than 5 files |
+| Add photo | `(i.status === 'OPEN' && i.reportedBy === me.id) \|\| (['CLAIMED','IN_PROGRESS'].includes(i.status) && i.volunteer?.id === me.id)`, and fewer than 5 files |
 | Claim | `i.status === 'OPEN' && i.reportedBy !== me.id && me.roles.includes('CITIZEN')` |
-| Release | `i.volunteerId === me.id && ['CLAIMED','IN_PROGRESS'].includes(i.status)` |
-| Start work | `i.volunteerId === me.id && i.status === 'CLAIMED'` |
-| Submit resolution | `i.volunteerId === me.id && ['CLAIMED','IN_PROGRESS'].includes(i.status)` and at least one PROOF photo of theirs |
-| Confirm (VERIFIED) | `me.roles.includes('AGENCY') && ['RESOLVED','AI_APPROVED'].includes(i.status) && i.volunteerId !== me.id` |
+| Release | `i.volunteer?.id === me.id && ['CLAIMED','IN_PROGRESS'].includes(i.status)` |
+| Start work | `i.volunteer?.id === me.id && i.status === 'CLAIMED'` |
+| Submit resolution | `i.volunteer?.id === me.id && ['CLAIMED','IN_PROGRESS'].includes(i.status)` and at least one PROOF photo of theirs |
+| Confirm (VERIFIED) | `me.roles.includes('AGENCY') && ['RESOLVED','AI_APPROVED'].includes(i.status) && i.volunteer?.id !== me.id` |
 | Send back / Reject / Duplicate | `me.roles.includes('AGENCY')` and the transition table allows it |
 
 Treat this as a UI hint, never as the security boundary — the server re-checks

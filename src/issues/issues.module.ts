@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PointsModule } from '../points/points.module.js';
+import { UsersModule } from '../users/users.module.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaController } from './issue-media.controller.js';
 import { IssueMediaService } from './issue-media.service.js';
@@ -13,6 +14,7 @@ import { Issue, IssueSchema } from './schemas/issue.schema.js';
   imports: [
     MongooseModule.forFeature([{ name: Issue.name, schema: IssueSchema }]),
     PointsModule,
+    UsersModule,
   ],
   controllers: [IssuesController, IssueMediaController],
   providers: [

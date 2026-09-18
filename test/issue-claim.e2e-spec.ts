@@ -117,7 +117,12 @@ describe('Issue claim & resolution (e2e)', () => {
   it('runs the whole arc: claim, start, prove, resolve, verify', async () => {
     const claimed = await claimBy(volunteerToken).expect(200);
     expect(claimed.body.status).toBe(IssueStatus.CLAIMED);
-    expect(claimed.body.volunteerId).toEqual(expect.any(String));
+    expect(claimed.body.volunteer.id).toEqual(expect.any(String));
+    // The name travels with the id; the reporter stays a bare id, because this
+    // payload is served to anyone without a token.
+    expect(claimed.body.volunteer.name).toBe('Test User');
+    expect(claimed.body.reportedBy).toEqual(expect.any(String));
+    expect(JSON.stringify(claimed.body)).not.toContain('reporterName');
 
     await request(app.getHttpServer())
       .post(`/issues/${issueId}/start`)
@@ -143,7 +148,7 @@ describe('Issue claim & resolution (e2e)', () => {
       .expect(200);
     expect(verified.body.status).toBe(IssueStatus.VERIFIED);
     expect(verified.body.verifiedAt).toEqual(expect.any(String));
-    expect(verified.body.volunteerId).toBe(claimed.body.volunteerId);
+    expect(verified.body.volunteer.id).toBe(claimed.body.volunteer.id);
   });
 
   describe('claiming', () => {
@@ -178,7 +183,7 @@ describe('Issue claim & resolution (e2e)', () => {
         .expect(200);
 
       expect(released.body.status).toBe(IssueStatus.OPEN);
-      expect(released.body.volunteerId).toBeUndefined();
+      expect(released.body.volunteer).toBeUndefined();
 
       await claimBy(otherToken).expect(200);
     });
@@ -198,7 +203,7 @@ describe('Issue claim & resolution (e2e)', () => {
         .expect(200);
 
       expect(res.body.status).toBe(IssueStatus.OPEN);
-      expect(res.body.volunteerId).toBeUndefined();
+      expect(res.body.volunteer).toBeUndefined();
     });
 
     it('refuses an agency force-release with no reason', async () => {
@@ -311,7 +316,7 @@ describe('Issue claim & resolution (e2e)', () => {
         .expect(200);
 
       expect(res.body.status).toBe(IssueStatus.IN_PROGRESS);
-      expect(res.body.volunteerId).toEqual(expect.any(String));
+      expect(res.body.volunteer.id).toEqual(expect.any(String));
     });
 
     it('refuses a citizen verifying', async () => {
@@ -342,7 +347,7 @@ describe('Issue claim & resolution (e2e)', () => {
       const claimed = await claimBy(volunteerToken).expect(200);
 
       const res = await request(app.getHttpServer())
-        .get(`/issues?volunteerId=${claimed.body.volunteerId}`)
+        .get(`/issues?volunteerId=${claimed.body.volunteer.id}`)
         .expect(200);
 
       expect(res.body).toHaveLength(1);

@@ -256,6 +256,15 @@ Both return 403 rather than 409: the move is legal, just not for that actor.
 
 `GET /issues?volunteerId=<id>` lists what someone is working on.
 
+**The volunteer is named in the response; the reporter is not.** An issue carries
+`volunteer: { id, name }` once claimed, and `reportedBy` stays a bare id. The
+listing is public and token-free, so a name beside every report would tell anyone
+who complained about what — a real risk when the report names a hazard or
+someone's negligence. A volunteer is a public actor by choice: the points they
+earn are credit for this work. `name` is absent if the account was later deleted;
+the id remains, so "is this mine?" still answers. An agency that needs to reach a
+reporter needs a role-gated route, not a wider public payload.
+
 ### AI proof verification
 
 When a volunteer submits proof, Claude compares the reporter's before

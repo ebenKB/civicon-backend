@@ -5,6 +5,7 @@ import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaService } from './issue-media.service.js';
 import { IssuesController } from './issues.controller.js';
 import { IssuesService } from './issues.service.js';
+import { UsersService } from '../users/users.service.js';
 
 const reporterId = new Types.ObjectId();
 
@@ -32,6 +33,7 @@ describe('IssuesController', () => {
   let service: Record<string, ReturnType<typeof vi.fn>>;
   let lifecycle: Record<string, ReturnType<typeof vi.fn>>;
   let mediaService: Record<string, ReturnType<typeof vi.fn>>;
+  let usersService: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
     service = {
@@ -50,6 +52,8 @@ describe('IssuesController', () => {
     mediaService = { listFor: vi.fn(), listForMany: vi.fn() };
     mediaService.listFor.mockResolvedValue([]);
     mediaService.listForMany.mockResolvedValue(new Map());
+    usersService = { namesFor: vi.fn() };
+    usersService.namesFor.mockResolvedValue(new Map());
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [IssuesController],
@@ -57,6 +61,7 @@ describe('IssuesController', () => {
         { provide: IssuesService, useValue: service },
         { provide: IssueLifecycleService, useValue: lifecycle },
         { provide: IssueMediaService, useValue: mediaService },
+        { provide: UsersService, useValue: usersService },
       ],
     }).compile();
 
@@ -175,5 +180,106 @@ describe('IssuesController', () => {
       reporterId.toString(),
       { note: 'Cleared it' },
     );
+  });
+});
+
+describe('IssuesController volunteer names', () => {
+  const volunteerId = new Types.ObjectId();
+
+  const claimedDoc = () =>
+    ({
+      _id: new Types.ObjectId(),
+      title: 'Blocked drain',
+      description: 'Water standing after rain.',
+      category: IssueCategory.DRAINAGE,
+      location: 'Market Street',
+      status: IssueStatus.CLAIMED,
+      reportedBy: reporterId,
+      volunteerId,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }) as never;
+
+  let controller: IssuesController;
+  let service: Record<string, ReturnType<typeof vi.fn>>;
+  let lifecycle: Record<string, ReturnType<typeof vi.fn>>;
+  let mediaService: Record<string, ReturnType<typeof vi.fn>>;
+  let usersService: Record<string, ReturnType<typeof vi.fn>>;
+
+  beforeEach(async () => {
+    service = {
+      create: vi.fn(),
+      findAll: vi.fn(),
+      findOne: vi.fn(),
+      updateOwn: vi.fn(),
+    };
+    lifecycle = {
+      changeStatus: vi.fn(),
+      claim: vi.fn(),
+      release: vi.fn(),
+      start: vi.fn(),
+      resolve: vi.fn(),
+    };
+    mediaService = { listFor: vi.fn(), listForMany: vi.fn() };
+    mediaService.listFor.mockResolvedValue([]);
+    mediaService.listForMany.mockResolvedValue(new Map());
+    usersService = { namesFor: vi.fn() };
+    usersService.namesFor.mockResolvedValue(
+      new Map([[volunteerId.toString(), 'Kofi Volunteer']]),
+    );
+
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [IssuesController],
+      providers: [
+        { provide: IssuesService, useValue: service },
+        { provide: IssueLifecycleService, useValue: lifecycle },
+        { provide: IssueMediaService, useValue: mediaService },
+        { provide: UsersService, useValue: usersService },
+      ],
+    }).compile();
+
+    controller = module.get<IssuesController>(IssuesController);
+  });
+
+  it('names the volunteer on a single issue', async () => {
+    service.findOne.mockResolvedValue(claimedDoc());
+
+    const result = await controller.findOne('507f1f77bcf86cd799439011');
+
+    expect(result.volunteer).toEqual({
+      id: volunteerId.toString(),
+      name: 'Kofi Volunteer',
+    });
+  });
+
+  // One lookup for the page, not one per row.
+  it('resolves a whole listing of volunteers in one query', async () => {
+    service.findAll.mockResolvedValue([claimedDoc(), claimedDoc()]);
+
+    const result = await controller.findAll({});
+
+    expect(usersService.namesFor).toHaveBeenCalledTimes(1);
+    expect(result[0].volunteer?.name).toBe('Kofi Volunteer');
+    expect(result[1].volunteer?.name).toBe('Kofi Volunteer');
+  });
+
+  it('does not ask for names when nobody has claimed anything', async () => {
+    service.findAll.mockResolvedValue([issueDoc(), issueDoc()]);
+
+    await controller.findAll({});
+
+    expect(usersService.namesFor).toHaveBeenCalledWith([]);
+  });
+
+  // Claiming used to answer with media: [] however many photos the issue had,
+  // so a gallery emptied itself the moment a volunteer took the work on.
+  it('carries the media and the name back from a claim', async () => {
+    lifecycle.claim.mockResolvedValue(claimedDoc());
+    mediaService.listFor.mockResolvedValue([{ id: 'm1' }]);
+
+    const result = await controller.claim('507f1f77bcf86cd799439011', caller);
+
+    expect(result.media).toHaveLength(1);
+    expect(result.volunteer?.name).toBe('Kofi Volunteer');
   });
 });

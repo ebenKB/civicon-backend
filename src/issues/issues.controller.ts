@@ -26,7 +26,10 @@ import { UpdateIssueDto } from './dto/update-issue.dto.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaService } from './issue-media.service.js';
 import { toPublicIssue } from './issue-response.js';
+import type { PublicIssue } from './issue-response.js';
+import type { IssueDocument } from './schemas/issue.schema.js';
 import { IssuesService } from './issues.service.js';
+import { UsersService } from '../users/users.service.js';
 
 @Controller('issues')
 export class IssuesController {
@@ -34,7 +37,26 @@ export class IssuesController {
     private readonly issuesService: IssuesService,
     private readonly issueLifecycleService: IssueLifecycleService,
     private readonly issueMediaService: IssueMediaService,
+    private readonly usersService: UsersService,
   ) {}
+
+  /**
+   * The single way an issue leaves this controller. Every route goes through
+   * it, so a response cannot quietly differ by which one produced it — the
+   * mutation routes used to answer with an empty media list however many
+   * photographs the issue carried.
+   */
+  private async present(issue: IssueDocument): Promise<PublicIssue> {
+    const id = issue._id.toString();
+    const volunteerId = issue.volunteerId?.toString();
+
+    const [media, names] = await Promise.all([
+      this.issueMediaService.listFor(id),
+      this.usersService.namesFor(volunteerId ? [volunteerId] : []),
+    ]);
+
+    return toPublicIssue(issue, media, volunteerId && names.get(volunteerId));
+  }
 
   @Post()
   @Roles(Role.CITIZEN)
@@ -42,7 +64,7 @@ export class IssuesController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() createIssueDto: CreateIssueDto,
   ) {
-    return toPublicIssue(
+    return this.present(
       await this.issuesService.create(user.id, createIssueDto),
     );
   }
@@ -53,20 +75,32 @@ export class IssuesController {
   @Get()
   async findAll(@Query() query: ListIssuesQuery) {
     const issues = await this.issuesService.findAll(query);
-    // One query for the whole page rather than one per issue.
-    const media = await this.issueMediaService.listForMany(
-      issues.map((issue) => issue._id.toString()),
-    );
-    return issues.map((issue) =>
-      toPublicIssue(issue, media.get(issue._id.toString()) ?? []),
-    );
+    // Two queries for the whole page rather than two per issue.
+    const [media, names] = await Promise.all([
+      this.issueMediaService.listForMany(
+        issues.map((issue) => issue._id.toString()),
+      ),
+      this.usersService.namesFor(
+        issues
+          .map((issue) => issue.volunteerId?.toString())
+          .filter((id): id is string => id !== undefined),
+      ),
+    ]);
+
+    return issues.map((issue) => {
+      const volunteerId = issue.volunteerId?.toString();
+      return toPublicIssue(
+        issue,
+        media.get(issue._id.toString()) ?? [],
+        volunteerId && names.get(volunteerId),
+      );
+    });
   }
 
   @Public()
   @Get(':id')
   async findOne(@Param('id', ParseObjectIdPipe) id: string) {
-    const issue = await this.issuesService.findOne(id);
-    return toPublicIssue(issue, await this.issueMediaService.listFor(id));
+    return this.present(await this.issuesService.findOne(id));
   }
   // Authenticated but no @Roles(): ownership is the requirement, and the
   // service enforces it.
@@ -76,7 +110,7 @@ export class IssuesController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() updateIssueDto: UpdateIssueDto,
   ) {
-    return toPublicIssue(
+    return this.present(
       await this.issuesService.updateOwn(id, user.id, updateIssueDto),
     );
   }
@@ -88,7 +122,7 @@ export class IssuesController {
     @Body() changeStatusDto: ChangeStatusDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return toPublicIssue(
+    return this.present(
       await this.issueLifecycleService.changeStatus(
         id,
         changeStatusDto,
@@ -107,7 +141,7 @@ export class IssuesController {
     @Param('id', ParseObjectIdPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return toPublicIssue(await this.issueLifecycleService.claim(id, user.id));
+    return this.present(await this.issueLifecycleService.claim(id, user.id));
   }
 
   // No @Roles(): holder-only, and the service enforces that. A role check here
@@ -117,7 +151,7 @@ export class IssuesController {
     @Param('id', ParseObjectIdPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return toPublicIssue(await this.issueLifecycleService.release(id, user.id));
+    return this.present(await this.issueLifecycleService.release(id, user.id));
   }
 
   @Post(':id/start')
@@ -128,7 +162,7 @@ export class IssuesController {
     @Param('id', ParseObjectIdPipe) id: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return toPublicIssue(await this.issueLifecycleService.start(id, user.id));
+    return this.present(await this.issueLifecycleService.start(id, user.id));
   }
 
   @Post(':id/resolution')
@@ -140,7 +174,7 @@ export class IssuesController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() resolveIssueDto: ResolveIssueDto,
   ) {
-    return toPublicIssue(
+    return this.present(
       await this.issueLifecycleService.resolve(id, user.id, resolveIssueDto),
     );
   }

@@ -20,7 +20,16 @@ export interface PublicIssue {
   reportedBy: string;
   statusReason?: string;
   duplicateOf?: string;
-  volunteerId?: string;
+  /**
+   * Who holds the issue, named. The reporter is deliberately only an id: this
+   * shape is served by a public, token-free endpoint, and a name beside every
+   * report tells anyone who complained about what. A volunteer is a public
+   * actor by choice — the points they earn are credit for exactly this work.
+   *
+   * `name` is absent when the account has since been deleted; the id stays, so
+   * "is this mine?" keeps working either way.
+   */
+  volunteer?: { id: string; name?: string };
   claimedAt?: Date;
   resolutionNote?: string;
   resolvedAt?: Date;
@@ -34,6 +43,7 @@ export interface PublicIssue {
 export function toPublicIssue(
   issue: IssueDocument,
   media: PublicMedia[] = [],
+  volunteerName?: string,
 ): PublicIssue {
   return {
     id: issue._id.toString(),
@@ -45,7 +55,14 @@ export function toPublicIssue(
     reportedBy: issue.reportedBy.toString(),
     statusReason: issue.statusReason,
     duplicateOf: issue.duplicateOf?.toString(),
-    volunteerId: issue.volunteerId?.toString(),
+    volunteer: issue.volunteerId
+      ? {
+          id: issue.volunteerId.toString(),
+          // Spread so the key is absent rather than explicitly undefined: this
+          // shape goes straight out as JSON.
+          ...(volunteerName === undefined ? {} : { name: volunteerName }),
+        }
+      : undefined,
     claimedAt: issue.claimedAt,
     resolutionNote: issue.resolutionNote,
     resolvedAt: issue.resolvedAt,

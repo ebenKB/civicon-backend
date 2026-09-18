@@ -32,7 +32,7 @@ describe('toPublicIssue', () => {
       reportedBy: reporterId.toString(),
       statusReason: undefined,
       duplicateOf: undefined,
-      volunteerId: undefined,
+      volunteer: undefined,
       claimedAt: undefined,
       resolutionNote: undefined,
       resolvedAt: undefined,
@@ -94,7 +94,7 @@ describe('toPublicIssue', () => {
 
     const result = toPublicIssue(issueDoc({ volunteerId }));
 
-    expect(result.volunteerId).toBe(volunteerId.toString());
+    expect(result.volunteer?.id).toBe(volunteerId.toString());
   });
   it('carries an assessment when one exists', () => {
     const assessment = {
@@ -108,5 +108,42 @@ describe('toPublicIssue', () => {
     expect(
       toPublicIssue(issueDoc({ aiAssessment: assessment })).aiAssessment,
     ).toEqual(assessment);
+  });
+});
+
+describe('toPublicIssue volunteer', () => {
+  const volunteerId = new Types.ObjectId();
+
+  it('names the volunteer holding the issue', () => {
+    const result = toPublicIssue(
+      issueDoc({ volunteerId, status: IssueStatus.CLAIMED }),
+      [],
+      'Kofi Volunteer',
+    );
+
+    expect(result.volunteer).toEqual({
+      id: volunteerId.toString(),
+      name: 'Kofi Volunteer',
+    });
+  });
+
+  // An account can be deleted while its work stays on the record, so the id is
+  // reported with or without a name to go against it.
+  it('keeps the volunteer id when no name is known', () => {
+    const result = toPublicIssue(
+      issueDoc({ volunteerId, status: IssueStatus.CLAIMED }),
+      [],
+    );
+
+    expect(result.volunteer).toEqual({ id: volunteerId.toString() });
+  });
+
+  // The reporter is deliberately not named: the list endpoint is public, and a
+  // name beside every report tells the whole internet who complained.
+  it('never names the reporter', () => {
+    const result = toPublicIssue(issueDoc(), [], 'Kofi Volunteer');
+
+    expect(result.reportedBy).toBe(reporterId.toString());
+    expect(JSON.stringify(result)).not.toContain('Kofi Volunteer');
   });
 });
