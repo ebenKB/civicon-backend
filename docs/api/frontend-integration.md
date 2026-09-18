@@ -462,6 +462,20 @@ the client doesn't choose:
 **201** → the `Media` object · **400** no file sent · **403** not yours to attach ·
 **409** over 5 files, or the status forbids it · **413** too big · **415** wrong type
 
+**Two different 413s, from two different places:**
+
+| Case | Message | Where it comes from |
+|---|---|---|
+| An image between 5 MB and 50 MB | `A image may be at most 5242880 bytes` | The app, after the whole file has uploaded |
+| Anything over 50 MB | `File too large` | The parser, which aborts mid-upload |
+
+The first one means the user waited through a full upload before being told no —
+the strongest reason to check `file.size` against the per-type cap in the browser
+first.
+
+Getting the field name wrong gives **400** `"Unexpected field - <name>"`. If you
+see that, the `FormData` key isn't `file`.
+
 ### The Media object
 
 ```ts
@@ -521,6 +535,10 @@ aiAssessment?: {
 ```
 
 What each outcome means for the UI:
+
+The threshold is **0.7**: `fixed` at or above it gives `APPROVED`, anything else
+gives `BELOW_THRESHOLD`. It's server-side configuration, so don't reimplement the
+comparison — read `outcome`, and use `confidence` only for display.
 
 | `outcome` | Resulting status | What to show |
 |---|---|---|
@@ -599,6 +617,9 @@ too, send `["CITIZEN","AGENCY"]`, not `["AGENCY"]`.
 
 These return the raw database document (with `_id`, `__v`), **not** the `PublicUser`
 shape the auth routes return. The password hash is never included.
+
+`PATCH /users/:id` with an email another account already has gives **409**, the
+same as registration. There's no endpoint for changing a password.
 
 ---
 
