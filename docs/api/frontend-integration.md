@@ -16,12 +16,11 @@ surprise you, it says so.
 
 Three things will cost you a day each if you find them the hard way.
 
-**1. CORS is not enabled yet — this is a blocker.** The server never calls
-`enableCors()`, so every browser request from `http://localhost:5173` (or any
-other origin) fails at the preflight. Nothing in this guide works from a browser
-until the backend adds it. Ask the backend team to enable CORS for your dev
-origin and your deployed origin. Postman and curl are unaffected, so you can
-explore the API today — you just can't ship a page against it.
+**1. CORS allows every origin — for now.** The server calls `enableCors()`
+with no allowlist, so any origin can call the API from a browser. That's safe
+only because auth is a bearer token in the `Authorization` header, never a
+cookie. It will be narrowed to an allowlist before any real deployment (a
+TODO in `src/main.ts`), so tell the backend team your deployed origin.
 
 **2. The token carries the roles it was issued with.** If an admin grants someone
 AGENCY, their existing token still says CITIZEN until they log in again.
@@ -704,7 +703,7 @@ for an uptime probe.
 
 Design around these absences; don't wait for them.
 
-- **CORS** — see §0. The one true blocker.
+- **A CORS allowlist** — every origin is allowed today (§0).
 - **Refresh tokens / logout** — a token dies after 7 days, and the user signs in again.
 - **Total counts on lists** — no page numbers; use "Load more".
 - **Public user profiles** — you can't turn a `reportedBy` id into a name.
