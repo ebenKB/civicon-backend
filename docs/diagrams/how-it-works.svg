@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"
+     font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="journey" gradientUnits="userSpaceOnUse" x1="200" y1="0" x2="1720" y2="0">
+      <stop offset="0%"   stop-color="#2C7A78"/>
+      <stop offset="52%"  stop-color="#E0A526"/>
+      <stop offset="100%" stop-color="#2E9E5B"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="34%" r="70%">
+      <stop offset="0%"   stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#EEF3F2"/>
+    </radialGradient>
+    <filter id="card" x="-30%" y="-30%" width="160%" height="170%">
+      <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#0F3B3A" flood-opacity="0.10"/>
+    </filter>
+    <marker id="tip" viewBox="0 0 12 12" refX="9" refY="6" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#A9B4B2"/>
+    </marker>
+    <marker id="tipAmber" viewBox="0 0 12 12" refX="9" refY="6" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 1 1 L 11 6 L 1 11 z" fill="#D9A43A"/>
+    </marker>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#glow)"/>
+
+  <text x="960" y="152" text-anchor="middle" font-size="56" font-weight="700" fill="#0F3B3A">How CiviCon works</text>
+  <text x="960" y="204" text-anchor="middle" font-size="26" fill="#6B7A78">A reported problem becomes a verified fix, with a person in the loop.</text>
+
+  <!-- the verification pair, called out as the heart of the product -->
+  <rect x="992" y="292" width="544" height="338" rx="38" fill="#E0A526" opacity="0.09"/>
+  <rect x="992" y="292" width="544" height="338" rx="38" fill="none" stroke="#D9A43A" stroke-width="2"
+        stroke-dasharray="3 10" opacity="0.5"/>
+  <text x="1264" y="272" text-anchor="middle" font-size="20" font-weight="700" letter-spacing="4.5" fill="#B9861A">THE TRUST LAYER</text>
+
+  <!-- the journey, one continuous track the cards sit on -->
+  <rect x="200" y="410.5" width="1520" height="9" rx="4.5" fill="url(#journey)"/>
+  <g stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.95">
+    <path d="M 347 407 L 356 415 L 347 423"/>
+    <path d="M 651 407 L 660 415 L 651 423"/>
+    <path d="M 955 407 L 964 415 L 955 423"/>
+    <path d="M 1259 407 L 1268 415 L 1259 423"/>
+    <path d="M 1563 407 L 1572 415 L 1563 423"/>
+  </g>
+
+  <!-- the loop: a verified fix brings the next report -->
+  <path d="M 1720 606 C 1720 856 1480 900 960 900 C 440 900 200 856 200 614"
+        fill="none" stroke="#A9B4B2" stroke-width="3" stroke-linecap="round"
+        stroke-dasharray="2 11" marker-end="url(#tip)"/>
+  <text x="960" y="948" text-anchor="middle" font-size="22" fill="#8A9795">and the cycle repeats</text>
+
+  <!-- cards -->
+  <g filter="url(#card)">
+    <rect x="100"  y="330" width="200" height="270" rx="26" fill="#FFFFFF"/>
+    <rect x="404"  y="330" width="200" height="270" rx="26" fill="#FFFFFF"/>
+    <rect x="708"  y="330" width="200" height="270" rx="26" fill="#FFFFFF"/>
+    <rect x="1012" y="330" width="200" height="270" rx="26" fill="#FFFFFF"/>
+    <rect x="1316" y="330" width="200" height="270" rx="26" fill="#FFFFFF"/>
+    <rect x="1620" y="330" width="200" height="270" rx="26" fill="#FFFFFF"/>
+  </g>
+  <g fill="none" stroke="#E6ECEB" stroke-width="1.5">
+    <rect x="100"  y="330" width="200" height="270" rx="26"/>
+    <rect x="404"  y="330" width="200" height="270" rx="26"/>
+    <rect x="708"  y="330" width="200" height="270" rx="26"/>
+    <rect x="1620" y="330" width="200" height="270" rx="26"/>
+  </g>
+  <g fill="none" stroke="#E0A526" stroke-width="2.5">
+    <rect x="1012" y="330" width="200" height="270" rx="26"/>
+    <rect x="1316" y="330" width="200" height="270" rx="26"/>
+  </g>
+
+  <!-- icon wells -->
+  <circle cx="200"  cy="415" r="46" fill="#2C7A78" opacity="0.10"/>
+  <circle cx="504"  cy="415" r="46" fill="#1F6B69" opacity="0.10"/>
+  <circle cx="808"  cy="415" r="46" fill="#1F6B69" opacity="0.10"/>
+  <circle cx="1112" cy="415" r="46" fill="#E0A526" opacity="0.16"/>
+  <circle cx="1416" cy="415" r="46" fill="#3B5BA5" opacity="0.12"/>
+  <circle cx="1720" cy="415" r="46" fill="#2E9E5B" opacity="0.12"/>
+
+  <!-- 1. Report: a photograph of the problem -->
+  <g fill="none" stroke="#2C7A78" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="174" y="400" width="52" height="34" rx="7"/>
+    <path d="M 190 400 l 4 -9 h 12 l 4 9"/>
+    <circle cx="200" cy="417" r="9.5"/>
+  </g>
+
+  <!-- 2. Claim: a volunteer plants a flag -->
+  <g fill="none" stroke="#1F6B69" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="490" y1="390" x2="490" y2="442"/>
+    <path d="M 490 394 L 528 406 L 490 418 Z"/>
+  </g>
+
+  <!-- 3. Fix and prove: the work itself -->
+  <g fill="none" stroke="#1F6B69" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="808" cy="415" r="17"/>
+    <circle cx="808" cy="415" r="7.5"/>
+    <g>
+      <rect x="804" y="391" width="8" height="9" rx="2"/>
+      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(45 808 415)"/>
+      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(90 808 415)"/>
+      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(135 808 415)"/>
+      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(180 808 415)"/>
+      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(225 808 415)"/>
+      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(270 808 415)"/>
+      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(315 808 415)"/>
+    </g>
+  </g>
+
+  <!-- 4. AI checks: before against after -->
+  <g fill="none" stroke="#B9861A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="1080" y="396" width="34" height="27" rx="4" fill="#FFFFFF"/>
+    <path d="M 1085 417 l 7 -8 l 5 5 l 6 -7 l 7 10"/>
+    <rect x="1100" y="414" width="34" height="27" rx="4" fill="#FFFFFF"/>
+    <path d="M 1105 435 l 7 -8 l 5 5 l 6 -7 l 7 10"/>
+    <circle cx="1138" cy="396" r="11"/>
+    <line x1="1146" y1="404" x2="1153" y2="411"/>
+  </g>
+
+  <!-- 5. Confirm: a person with authority signs it off -->
+  <g fill="none" stroke="#3B5BA5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 1416 388 L 1444 399 L 1444 417 C 1444 433 1432 442 1416 446 C 1400 442 1388 433 1388 417 L 1388 399 Z"/>
+    <path d="M 1404 414 L 1412 423 L 1429 404"/>
+  </g>
+
+  <!-- 6. Points -->
+  <g fill="none" stroke="#2E9E5B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="1720" cy="415" r="30"/>
+    <path d="M 1720 395 L 1725 408.1 L 1739 408.8 L 1728.1 417.6 L 1731.8 431.2 L 1720 423.5 L 1708.2 431.2 L 1711.9 417.6 L 1701 408.8 L 1715 408.1 Z"/>
+  </g>
+
+  <!-- role pills, straddling each card's top edge -->
+  <g font-size="17" font-weight="700" letter-spacing="2.2" text-anchor="middle" fill="#FFFFFF">
+    <rect x="142"  y="313" width="116" height="34" rx="17" fill="#2C7A78"/><text x="200"  y="336">CITIZEN</text>
+    <rect x="430"  y="313" width="148" height="34" rx="17" fill="#1F6B69"/><text x="504"  y="336">VOLUNTEER</text>
+    <rect x="734"  y="313" width="148" height="34" rx="17" fill="#1F6B69"/><text x="808"  y="336">VOLUNTEER</text>
+    <rect x="1080" y="313" width="64"  height="34" rx="17" fill="#E0A526"/><text x="1112" y="336">AI</text>
+    <rect x="1360" y="313" width="112" height="34" rx="17" fill="#3B5BA5"/><text x="1416" y="336">AGENCY</text>
+    <rect x="1646" y="313" width="148" height="34" rx="17" fill="#1F6B69"/><text x="1720" y="336">VOLUNTEER</text>
+  </g>
+
+  <!-- labels and the detail that makes each step credible -->
+  <g text-anchor="middle" fill="#0F3B3A" font-size="34" font-weight="700">
+    <text x="200"  y="530">Report</text>
+    <text x="504"  y="530">Claim</text>
+    <text x="808"  y="530">Fix &amp; prove</text>
+    <text x="1112" y="530">AI checks</text>
+    <text x="1416" y="530">Confirm</text>
+    <text x="1720" y="530">Points</text>
+  </g>
+  <g text-anchor="middle" fill="#6B7A78" font-size="21">
+    <text x="200"  y="566">photo + location</text>
+    <text x="504"  y="566">not your own report</text>
+    <text x="808"  y="566">after photo required</text>
+    <text x="1112" y="566">before vs after</text>
+    <text x="1416" y="566">a person decides</text>
+    <text x="1720" y="566">10 per verified fix</text>
+  </g>
+
+  <!-- the fallback lane: when the AI is not confident -->
+  <path d="M 1112 606 C 1112 682 1150 730 1204 730" fill="none" stroke="#D9A43A" stroke-width="3"
+        stroke-linecap="round" marker-end="url(#tipAmber)"/>
+  <path d="M 1400 730 C 1436 690 1416 646 1416 612" fill="none" stroke="#C7B48A" stroke-width="3"
+        stroke-linecap="round" stroke-dasharray="2 10" marker-end="url(#tipAmber)"/>
+
+  <rect x="1104" y="730" width="320" height="120" rx="24" fill="#FFFDF5" stroke="#E7D4A8" stroke-width="2"/>
+  <circle cx="1166" cy="790" r="26" fill="#E0A526" opacity="0.14"/>
+  <g fill="none" stroke="#B9861A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="1166" cy="782" r="11"/>
+    <path d="M 1148 810 a 18 18 0 0 1 36 0"/>
+  </g>
+  <text x="1208" y="784" font-size="26" font-weight="700" fill="#0F3B3A">Human review</text>
+  <text x="1208" y="814" font-size="19" fill="#8A7A55">when the AI is unsure</text>
+</svg>
