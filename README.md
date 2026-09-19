@@ -65,7 +65,10 @@ $ npm run seed
 $ npm run seed -- --fresh
 ```
 
-Sample records live in [`src/seed.ts`](src/seed.ts).
+Sample records live in [`src/seed.ts`](src/seed.ts). Every seeded issue gets
+its "before" photo from [`seed/images/`](seed/images/README.md), which lists the
+exact filenames; an image not added yet is replaced by a 1×1 placeholder, so the
+seed always runs. After adding photos, reseed with `--fresh` to swap them in.
 
 ### Demo accounts
 

@@ -1,4 +1,5 @@
 import { Logger } from '@nestjs/common';
+import { fileURLToPath } from 'node:url';
 import { NestFactory } from '@nestjs/core';
 import { getConnectionToken, getModelToken } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -14,12 +15,21 @@ import {
 import { Issue, IssueDocument } from './issues/schemas/issue.schema.js';
 import { IssueLifecycleService } from './issues/issue-lifecycle.service.js';
 import { IssueMediaService } from './issues/issue-media.service.js';
+import { loadSeedImage } from './seed-images.js';
 import { User, UserDocument } from './users/schemas/user.schema.js';
 
 /**
- * A 1x1 PNG, inlined so the seed needs no fixture on disk. Attached to the
- * first seeded issue so the media read endpoints — and the Postman collection
- * that exercises them — have something real to fetch without a manual upload.
+ * Demo photographs, one per issue, named `<image>-before.<ext>` (and
+ * `<image>-after.<ext>` for the proof a volunteer uploads live in the demo).
+ * Resolved from the compiled file, so it is the repo's seed/images whichever
+ * directory the seed is run from.
+ */
+const SEED_IMAGES = fileURLToPath(new URL('../seed/images/', import.meta.url));
+
+/**
+ * A 1x1 PNG, inlined so the seed runs before any demo photograph exists. Used
+ * for an issue whose image has not been generated yet, so every issue still
+ * carries a photo and the media endpoints have something to serve.
  */
 const SAMPLE_IMAGE = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
@@ -75,6 +85,8 @@ interface SeedIssue {
   location: string;
   /** Email of the seeded user who reported it. */
   reporterEmail: string;
+  /** Base name of its photographs in seed/images. */
+  image: string;
 }
 
 // All OPEN, so the claim-and-resolution slice has material to work with.
@@ -85,6 +97,7 @@ const SAMPLE_ISSUES: SeedIssue[] = [
     category: IssueCategory.DRAINAGE,
     location: 'Market Street junction',
     reporterEmail: 'citizen@civicon.test',
+    image: 'blocked-drain',
   },
   {
     title: 'Streetlight out for two weeks',
@@ -92,6 +105,7 @@ const SAMPLE_ISSUES: SeedIssue[] = [
     category: IssueCategory.ELECTRICITY,
     location: 'Ring Road East, by the school',
     reporterEmail: 'citizen@civicon.test',
+    image: 'streetlight-out',
   },
   {
     title: 'Pothole damaging vehicles',
@@ -99,6 +113,7 @@ const SAMPLE_ISSUES: SeedIssue[] = [
     category: IssueCategory.ROADS,
     location: 'Independence Avenue, inbound',
     reporterEmail: 'volunteer@civicon.test',
+    image: 'pothole',
   },
   {
     title: 'Refuse skip overflowing',
@@ -106,6 +121,7 @@ const SAMPLE_ISSUES: SeedIssue[] = [
     category: IssueCategory.SANITATION,
     location: 'Behind the central market',
     reporterEmail: 'ada@example.com',
+    image: 'overflowing-skip',
   },
 ];
 
@@ -215,29 +231,55 @@ async function seed() {
     report(
       `issues inserted: ${issueResult.upsertedCount}, updated: ${issueResult.modifiedCount}`,
     );
-    // Attach a sample photo to the first seeded issue, unless it already has
-    // one — re-running the seed must not accumulate files.
+    // Every issue gets its before photo, so each card in the demo has an image
+    // and the AI has something to compare a volunteer's proof against. Skipped
+    // when the issue already carries one — re-running must not pile up files —
+    // and when it has moved past OPEN, where the reporter can no longer attach.
     const mediaService = app.get(IssueMediaService);
-    const [firstIssue] = await issueModel
-      .find({ title: SAMPLE_ISSUES[0].title })
-      .exec();
+    for (const sample of SAMPLE_ISSUES) {
+      const [issue] = await issueModel.find({ title: sample.title }).exec();
+      if (!issue) {
+        continue;
+      }
 
-    if (firstIssue) {
-      const already = await mediaService.listFor(firstIssue._id.toString());
-      if (already.length === 0) {
-        await mediaService.upload(
-          firstIssue._id.toString(),
-          firstIssue.reportedBy.toString(),
-          {
-            originalname: 'culvert.png',
+      const issueId = issue._id.toString();
+      const already = await mediaService.listFor(issueId);
+      if (already.length > 0) {
+        report(`"${sample.title}" already carries ${already.length} file(s)`);
+        continue;
+      }
+      if (issue.status !== IssueStatus.OPEN) {
+        report(`"${sample.title}" is ${issue.status}; no photo attached`);
+        continue;
+      }
+
+      const image = await loadSeedImage(SEED_IMAGES, `${sample.image}-before`);
+      const file = image
+        ? {
+            originalname: image.filename,
+            mimetype: image.mimetype,
+            size: image.buffer.length,
+            buffer: image.buffer,
+          }
+        : {
+            originalname: 'placeholder.png',
             mimetype: 'image/png',
             size: SAMPLE_IMAGE.length,
             buffer: SAMPLE_IMAGE,
-          },
+          };
+
+      try {
+        await mediaService.upload(issueId, issue.reportedBy.toString(), file);
+        report(
+          image
+            ? `attached ${image.filename} to "${sample.title}"`
+            : `no ${sample.image}-before image yet; attached a placeholder to "${sample.title}"`,
         );
-        report('attached a sample photo to the first issue');
-      } else {
-        report(`first issue already carries ${already.length} file(s)`);
+      } catch (error) {
+        // A generated image over the 5MB cap should name itself, not abort the
+        // whole seed with an anonymous size error.
+        const reason = error instanceof Error ? error.message : String(error);
+        report(`could not attach ${file.originalname}: ${reason}`);
       }
     }
 
