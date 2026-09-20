@@ -204,6 +204,13 @@ type HazardLevel =
 type HazardSource = 'REPORTER' | 'AI' | 'AGENCY' | 'ADMIN';
 
 type HazardAnswer = 'YES' | 'NO' | 'UNSURE';
+
+// Served by GET /hazard/questions — see §4a. Don't hardcode the text.
+type HazardQuestion = {
+  id: string;
+  text: string;
+  kind: 'OBSERVATION' | 'FOLLOW_UP';
+};
 ```
 
 Category is **required** when reporting. The backend knows people don't always
@@ -349,7 +356,7 @@ what they saw isn't an admin power)
 `UNCLASSIFIED` and stops being claimable — the verdict was about text that no
 longer exists, so it has to be classified again. The response carries the new
 `hazard`, so read it rather than assuming the edit was cosmetic, and send the
-reporter back through step 3.
+reporter back through classification again.
 
 A `RESTRICTED` or `NEEDS_REVIEW` issue is **not** reset by an edit: an edit can
 take an issue out of the claimable state, never out of a restriction. And
@@ -387,27 +394,24 @@ next to a hazard. A copy pasted into the client would go stale silently, and two
 systems would be asking different safety questions. The lists below are for
 reading while you build, not for shipping.
 
-**Step 1 — tick what you can see, when reporting.** `POST /issues` (above)
+**While reporting — tick what you can see.** `POST /issues` (above)
 takes an optional `observations` array of question ids. Offer them as checkboxes
 on the report form. Ticking any one of them restricts the issue outright once
 classified — no AI call needed for that verdict.
 
-```ts
-const OBSERVATION_QUESTIONS = [
-  { id: 'obs-wires',           text: 'I can see loose, broken or hanging electrical wires' },
-  { id: 'obs-water-electric',  text: 'Water is touching something electrical' },
-  { id: 'obs-collapse',        text: 'Part of a structure has collapsed, or is leaning' },
-  { id: 'obs-gas',             text: 'There is a smell of gas or fuel' },
-  { id: 'obs-deep-water',      text: 'The water is deep or moving fast' },
-  { id: 'obs-traffic',         text: 'It is in a lane where vehicles are still driving' },
-];
-```
+The six, for reference while you build — fetch them at runtime rather than
+copying this table:
 
-There's no endpoint that serves this list — it's a fixed, stable server
-contract (ids are never reused once retired), so hardcode it exactly like the
-enumerations in §3.
+| id | text |
+| --- | --- |
+| `obs-wires` | I can see loose, broken or hanging electrical wires |
+| `obs-water-electric` | Water is touching something electrical |
+| `obs-collapse` | Part of a structure has collapsed, or is leaning |
+| `obs-gas` | There is a smell of gas or fuel |
+| `obs-deep-water` | The water is deep or moving fast |
+| `obs-traffic` | It is in a lane where vehicles are still driving |
 
-**Step 2 — classify.** `POST /issues/:id/classification` — the reporter, no
+**After the photos — classify.** `POST /issues/:id/classification` — the reporter, no
 body needed the first time.
 
 ```
@@ -422,7 +426,7 @@ POST /issues/507f.../classification
 | `UNRESTRICTED` | Cleared — a volunteer can claim it | "Looks like ordinary work" |
 | `RESTRICTED` | An observation was ticked, or the AI was confident it's dangerous | "This needs a specialist — an agency will handle it" |
 | `NEEDS_REVIEW` with `pendingQuestions: []` | The AI couldn't decide and had no good follow-up questions (or there's no `ANTHROPIC_API_KEY` configured at all) | "Waiting for an agency to take a look" |
-| `NEEDS_REVIEW` with `pendingQuestions: [...]` | The AI has 3–5 follow-up questions that would settle it | Show them, go to step 3 |
+| `NEEDS_REVIEW` with `pendingQuestions: [...]` | The AI has 3–5 follow-up questions that would settle it | Show them, then answer below |
 
 **This call is synchronous — it can take up to roughly a minute or two in the
 worst case** (photographs, or especially video, add real latency to the model
@@ -430,37 +434,36 @@ call). Show a spinner that tolerates a slow response; don't assume it's fast
 like the other mutation routes.
 
 **409** if the issue was already classified and you call this again with no
-`answers` — check `hazard !== 'UNCLASSIFIED'` before showing this step as
-available.
+`answers` — check `hazard !== 'UNCLASSIFIED'` before offering it.
 
-**Step 3 — answer the follow-ups, or wait.** Only when step 2 came back with
+**If it asks — answer the follow-ups, or wait.** Only when the classify call came back with
 `pendingQuestions`. Those are ids from the `followUps` half of
 `GET /hazard/questions`; look each one up there to render it. Each answer is `'YES' | 'NO' | 'UNSURE'`.
 
-```ts
-const FOLLOW_UP_QUESTIONS = [
-  { id: 'elec-1',    text: 'Are any wires hanging down, broken, or lying on the ground?' },
-  { id: 'elec-2',    text: 'Is anything electrical in contact with water?' },
-  { id: 'elec-3',    text: 'Is the pole or its cover damaged, leaning, or open?' },
-  { id: 'elec-4',    text: 'Can you hear buzzing, see sparks, or smell burning?' },
-  { id: 'water-1',   text: 'Is the water deeper than knee height?' },
-  { id: 'water-2',   text: 'Is the water moving fast enough to push against your legs?' },
-  { id: 'water-3',   text: 'Is a drain or manhole cover missing or open?' },
-  { id: 'traffic-1', text: 'Are vehicles still driving past the spot?' },
-  { id: 'traffic-2', text: 'Would someone working on this have to stand in the road?' },
-  { id: 'traffic-3', text: 'Is this on a main road rather than a side street?' },
-  { id: 'struct-1',  text: 'Has any part of a wall, roof, pole or bridge already fallen?' },
-  { id: 'struct-2',  text: 'Is anything leaning, cracked, or looking likely to fall?' },
-  { id: 'struct-3',  text: 'Is there loose material overhead?' },
-  { id: 'gas-1',     text: 'Can you smell gas, petrol or diesel?' },
-  { id: 'gas-2',     text: 'Is there any fire, smoke, or heat coming from it?' },
-  { id: 'height-1',  text: 'Would someone need a ladder, or to climb, to reach it?' },
-  { id: 'height-2',  text: 'Is it above head height?' },
-  { id: 'gen-1',     text: 'Is there broken glass, sharp metal, or medical waste?' },
-  { id: 'gen-2',     text: 'Is anything chemical leaking or spilled?' },
-  { id: 'gen-3',     text: 'Is the area already fenced off, taped off, or being guarded?' },
-];
-```
+The twenty it draws from, again for reference only:
+
+| id | text |
+| --- | --- |
+| `elec-1` | Are any wires hanging down, broken, or lying on the ground? |
+| `elec-2` | Is anything electrical in contact with water? |
+| `elec-3` | Is the pole or its cover damaged, leaning, or open? |
+| `elec-4` | Can you hear buzzing, see sparks, or smell burning? |
+| `water-1` | Is the water deeper than knee height? |
+| `water-2` | Is the water moving fast enough to push against your legs? |
+| `water-3` | Is a drain or manhole cover missing or open? |
+| `traffic-1` | Are vehicles still driving past the spot? |
+| `traffic-2` | Would someone working on this have to stand in the road? |
+| `traffic-3` | Is this on a main road rather than a side street? |
+| `struct-1` | Has any part of a wall, roof, pole or bridge already fallen? |
+| `struct-2` | Is anything leaning, cracked, or looking likely to fall? |
+| `struct-3` | Is there loose material overhead? |
+| `gas-1` | Can you smell gas, petrol or diesel? |
+| `gas-2` | Is there any fire, smoke, or heat coming from it? |
+| `height-1` | Would someone need a ladder, or to climb, to reach it? |
+| `height-2` | Is it above head height? |
+| `gen-1` | Is there broken glass, sharp metal, or medical waste? |
+| `gen-2` | Is anything chemical leaking or spilled? |
+| `gen-3` | Is the area already fenced off, taped off, or being guarded? |
 
 Call the **same** classification route again, this time with every pending
 question answered and nothing else:
@@ -883,8 +886,9 @@ A build order that follows what the API actually supports.
 1. **Sign up / sign in** → store the token, call `GET /auth/me` on boot.
 2. **Issue feed** — `GET /issues?status=OPEN`, filter chips for category,
    "Load more" via `offset`. Public, so it works signed out.
-3. **Report an issue** — form → `POST /issues` → then upload photos to the new id.
-   Treat it as one wizard; the user shouldn't know it's two calls.
+3. **Report an issue** — form → `POST /issues` → upload photos → `POST
+   /issues/:id/classification`. Treat it as one wizard; the user shouldn't know
+   it's three calls, though they do wait through the last one (§4a).
 4. **Issue detail** — `GET /issues/:id`, media gallery, a status timeline built
    from `createdAt` / `claimedAt` / `resolvedAt` / `verifiedAt`, plus
    `statusReason` when present.
@@ -923,7 +927,7 @@ already been classified — or attaching a new REPORT photo to one — resets
 `hazard` back to `UNCLASSIFIED` and clears `hazardAssessment`,
 `pendingQuestions` and `answers`: the existing verdict was about the text and
 photos the classifier actually read, and either of those actions changes what
-it saw. The reporter must submit for classification again (§4a, step 2). An
+it saw. The reporter must submit for classification again (§4a). An
 edit or upload that doesn't change any of those inputs — resubmitting the same
 title, say — leaves the classification alone.
 
