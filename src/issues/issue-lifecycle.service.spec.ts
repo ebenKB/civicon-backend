@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { AiOutcome, IssueStatus } from '../contracts/index.js';
+import { AiOutcome, IssueStatus, HazardLevel } from '../contracts/index.js';
 import { CivicPointsService } from '../points/civic-points.service.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaService } from './issue-media.service.js';
@@ -208,6 +208,7 @@ describe('IssueLifecycleService', () => {
     const openIssue = (overrides: Record<string, unknown> = {}) => ({
       status: IssueStatus.OPEN,
       reportedBy: new Types.ObjectId(REPORTER),
+      hazard: HazardLevel.UNRESTRICTED,
       save: vi.fn().mockImplementation(function (this: unknown) {
         return Promise.resolve(this);
       }),
@@ -248,6 +249,34 @@ describe('IssueLifecycleService', () => {
       await expect(
         service.claim(ISSUE_ID, '507f1f77bcf86cd799439055'),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    describe('the hazard gate', () => {
+      // The gate runs before everything else, so a restricted issue never
+      // answers "already claimed" and send someone to look at it.
+      it.each([
+        [HazardLevel.UNCLASSIFIED, 'has not been classified'],
+        [HazardLevel.NEEDS_REVIEW, 'waiting for an agency'],
+        [HazardLevel.RESTRICTED, 'specialist handling'],
+      ])('refuses a claim when hazard is %s', async (hazard, fragment) => {
+        issuesService.findOne.mockResolvedValue(
+          openIssue({ status: IssueStatus.OPEN, hazard }),
+        );
+
+        await expect(service.claim(ISSUE_ID, VOLUNTEER)).rejects.toThrow(fragment);
+      });
+
+      it('allows a claim on an unrestricted issue', async () => {
+        const issue = openIssue({
+          status: IssueStatus.OPEN,
+          hazard: HazardLevel.UNRESTRICTED,
+        });
+        issuesService.findOne.mockResolvedValue(issue);
+
+        const result = await service.claim(ISSUE_ID, VOLUNTEER);
+
+        expect(result.status).toBe(IssueStatus.CLAIMED);
+      });
     });
   });
 

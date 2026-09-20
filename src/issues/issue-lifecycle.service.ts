@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { AiOutcome, IssueStatus } from '../contracts/index.js';
+import { AiOutcome, IssueStatus, HazardLevel } from '../contracts/index.js';
 import { CivicPointsService } from '../points/civic-points.service.js';
 import { ChangeStatusDto } from './dto/change-status.dto.js';
 import { ResolveIssueDto } from './dto/resolve-issue.dto.js';
@@ -55,6 +55,14 @@ const AGENCY_TARGETS: readonly IssueStatus[] = [
   IssueStatus.REJECTED,
   IssueStatus.DUPLICATE,
 ];
+
+const HAZARD_REFUSALS: Record<HazardLevel, string> = {
+  [HazardLevel.UNCLASSIFIED]: 'This issue has not been classified yet',
+  [HazardLevel.NEEDS_REVIEW]: 'This issue is waiting for an agency to review it',
+  [HazardLevel.RESTRICTED]:
+    'This issue needs specialist handling and cannot be claimed',
+  [HazardLevel.UNRESTRICTED]: '',
+};
 
 /**
  * The single place an issue's status changes. Keeping it out of IssuesService
@@ -233,6 +241,12 @@ export class IssueLifecycleService {
    */
   async claim(id: string, actorId: string): Promise<IssueDocument> {
     const issue = await this.issuesService.findOne(id);
+
+    // First, so a restricted issue never reports "already claimed" instead of
+    // the reason nobody should be going there.
+    if (issue.hazard !== HazardLevel.UNRESTRICTED) {
+      throw new ForbiddenException(HAZARD_REFUSALS[issue.hazard]);
+    }
 
     // Checked before the transition so a second claimer gets a message about
     // the conflict rather than "cannot move from CLAIMED to CLAIMED".
