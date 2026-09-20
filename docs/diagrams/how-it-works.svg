@@ -23,8 +23,9 @@
 
   <rect width="1920" height="1080" fill="url(#glow)"/>
 
-  <text x="960" y="152" text-anchor="middle" font-size="56" font-weight="700" fill="#0F3B3A">How CiviCon works</text>
-  <text x="960" y="204" text-anchor="middle" font-size="26" fill="#6B7A78">A reported problem becomes a verified fix, with a person in the loop.</text>
+  <!-- the title block lives in the slide, not the artwork; this recentres what is left -->
+  <g transform="translate(0,-58)">
+
 
   <!-- the verification pair, called out as the heart of the product -->
   <rect x="992" y="292" width="544" height="298" rx="38" fill="#E0A526" opacity="0.09"/>
@@ -160,4 +161,5 @@
     <path d="M 1148 780 a 18 18 0 0 1 36 0"/>
   </g>
   <text x="1208" y="770" font-size="26" font-weight="700" fill="#0F3B3A">Human review</text>
+  </g>
 </svg>
