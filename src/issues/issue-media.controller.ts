@@ -108,6 +108,6 @@ export class IssueMediaController {
     @Param('mediaId', ParseObjectIdPipe) mediaId: string,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.issueMediaService.remove(mediaId, user.id);
+    return this.issueMediaService.remove(mediaId, user.id, user.roles);
   }
 }

@@ -162,6 +162,7 @@ describe('IssueMediaController', () => {
     expect(service.remove).toHaveBeenCalledWith(
       '507f1f77bcf86cd799439033',
       '507f1f77bcf86cd799439011',
+      caller.roles,
     );
   });
 });

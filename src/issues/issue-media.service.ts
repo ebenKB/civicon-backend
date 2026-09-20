@@ -176,7 +176,7 @@ export class IssueMediaService implements OnModuleInit {
     };
   }
 
-  async remove(mediaId: string, actorId: string): Promise<void> {
+  async remove(mediaId: string, actorId: string, roles: Role[]): Promise<void> {
     const file = await this.findFile(mediaId);
     const issueId = file.metadata?.issueId?.toString();
     if (!issueId) {
@@ -185,10 +185,7 @@ export class IssueMediaService implements OnModuleInit {
       );
     }
 
-    // Deletion is unaffected by this slice — an agency's own proof photo is
-    // still reached only through the volunteer/reporter branches below, since
-    // no role in the RESTRICTED branch is passed here.
-    await this.assertMayAttach(issueId, actorId, []);
+    await this.assertMayAttach(issueId, actorId, roles, 'remove');
     await this.bucket.delete(file._id);
   }
 
@@ -196,16 +193,23 @@ export class IssueMediaService implements OnModuleInit {
    * Who may attach, and what the file counts as. Both are positional: the
    * issue's state decides, so a client cannot claim its upload is something it
    * is not.
+   *
+   * `action` distinguishes adding new evidence from removing existing media.
+   * The RESTRICTED gate below only ever blocks 'attach': a reporter whose
+   * report photo predates classification must still be able to remove it, and
+   * removal of a specific file already falls back to the ordinary
+   * reporter/holder ownership checks further down.
    */
   private async assertMayAttach(
     issueId: string,
     actorId: string,
     roles: Role[],
+    action: 'attach' | 'remove' = 'attach',
   ): Promise<MediaPurpose> {
     const issue = await this.issuesService.findOne(issueId);
 
-    // A restricted issue is the agency's to fix, so it is also theirs to
-    // evidence, and nobody else's — not even the citizen who reported it.
+    // A restricted issue is the agency's to fix, so it is also theirs to add
+    // new evidence to — not even the citizen who reported it may attach more.
     // Checked ahead of the OPEN/CLAIMED branches below, which would otherwise
     // let the reporter through on report-time status alone.
     if (
@@ -216,9 +220,14 @@ export class IssueMediaService implements OnModuleInit {
       if (roles.includes(Role.AGENCY)) {
         return MediaPurpose.PROOF;
       }
-      throw new ForbiddenException(
-        'This issue needs specialist handling; only an agency can attach evidence',
-      );
+      if (action === 'attach') {
+        throw new ForbiddenException(
+          'This issue needs specialist handling; only an agency can attach evidence',
+        );
+      }
+      // action === 'remove': fall through to the ordinary ownership checks
+      // below, so the reporter can still remove their own pre-classification
+      // report photo.
     }
 
     if (issue.status === IssueStatus.OPEN) {

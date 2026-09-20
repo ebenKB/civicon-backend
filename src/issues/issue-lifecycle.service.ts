@@ -171,9 +171,14 @@ export class IssueLifecycleService {
 
     // Points follow the status, and never block it: a ledger failure must not
     // undo a decision an agency has already made. Both directions are gated
-    // on volunteerId: an agency-resolved issue pays nobody, so there is
-    // nothing to award or reverse.
-    if (dto.status === IssueStatus.VERIFIED && saved.volunteerId) {
+    // on volunteerId without agencyResolverId: an agency-resolved issue pays
+    // nobody, even when a stale volunteerId survives from before the issue
+    // was reclassified RESTRICTED (the agency branch in resolve() never
+    // clears it, since a volunteer already mid-claim keeps the record of who
+    // was working it — it simply stops being who gets paid).
+    const paysAVolunteer = saved.volunteerId && !saved.agencyResolverId;
+
+    if (dto.status === IssueStatus.VERIFIED && paysAVolunteer) {
       await this.settlePoints('award', saved, () =>
         this.civicPointsService.awardForVerification(saved),
       );
@@ -182,7 +187,7 @@ export class IssueLifecycleService {
     if (
       dto.status === IssueStatus.IN_PROGRESS &&
       wasVerified &&
-      saved.volunteerId
+      paysAVolunteer
     ) {
       await this.settlePoints('reverse', saved, () =>
         this.civicPointsService.reverseForVerification(saved),

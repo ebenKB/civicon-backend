@@ -493,6 +493,47 @@ describe('IssueLifecycleService', () => {
       expect(pointsService.awardForVerification).not.toHaveBeenCalled();
     });
 
+    // A CLAIMED/IN_PROGRESS issue reclassified RESTRICTED keeps its stale
+    // volunteerId when the agency resolves it — the agency branch never
+    // clears it. The volunteerId guard alone would pay that volunteer for
+    // work they did not do and evidence that was never counted.
+    it('pays nobody when a stale volunteerId survives an agency resolution', async () => {
+      const issue = issueDoc({
+        status: IssueStatus.RESOLVED,
+        hazard: HazardLevel.RESTRICTED,
+        agencyResolverId: new Types.ObjectId(AGENCY_USER),
+        volunteerId: new Types.ObjectId(VOLUNTEER),
+      });
+      issuesService.findOne.mockResolvedValue(issue);
+
+      await service.changeStatus(
+        ISSUE_ID,
+        { status: IssueStatus.VERIFIED },
+        OTHER_AGENCY,
+      );
+
+      expect(pointsService.awardForVerification).not.toHaveBeenCalled();
+    });
+
+    it('reverses nothing for that same shape', async () => {
+      const issue = issueDoc({
+        status: IssueStatus.VERIFIED,
+        hazard: HazardLevel.RESTRICTED,
+        agencyResolverId: new Types.ObjectId(AGENCY_USER),
+        volunteerId: new Types.ObjectId(VOLUNTEER),
+        verifiedAt: new Date(),
+      });
+      issuesService.findOne.mockResolvedValue(issue);
+
+      await service.changeStatus(
+        ISSUE_ID,
+        { status: IssueStatus.IN_PROGRESS, reason: 'wrong' },
+        OTHER_AGENCY,
+      );
+
+      expect(pointsService.reverseForVerification).not.toHaveBeenCalled();
+    });
+
     // The same rule volunteers live under: you do not sign off your own work.
     it('refuses the resolving agency user confirming their own fix', async () => {
       issuesService.findOne.mockResolvedValue(

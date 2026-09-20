@@ -189,7 +189,9 @@ describe('IssueMediaService', () => {
       issuesService.findOne.mockResolvedValue(openIssue());
 
       await expect(
-        service.remove(new Types.ObjectId().toString(), STRANGER),
+        service.remove(new Types.ObjectId().toString(), STRANGER, [
+          Role.CITIZEN,
+        ]),
       ).rejects.toBeInstanceOf(ForbiddenException);
       expect(bucket.delete).not.toHaveBeenCalled();
     });
@@ -199,7 +201,7 @@ describe('IssueMediaService', () => {
       bucket.find.mockReturnValue(cursorOf([doc]));
       issuesService.findOne.mockResolvedValue(openIssue());
 
-      await service.remove(doc._id.toString(), REPORTER);
+      await service.remove(doc._id.toString(), REPORTER, [Role.CITIZEN]);
 
       expect(bucket.delete).toHaveBeenCalledWith(doc._id);
     });
@@ -208,8 +210,43 @@ describe('IssueMediaService', () => {
       bucket.find.mockReturnValue(cursorOf([]));
 
       await expect(
-        service.remove(new Types.ObjectId().toString(), REPORTER),
+        service.remove(new Types.ObjectId().toString(), REPORTER, [
+          Role.CITIZEN,
+        ]),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    // The RESTRICTED gate added for attaching new evidence must not also
+    // block a reporter from removing a report photo they attached before the
+    // issue was ever classified — that worked before this slice.
+    it('lets the reporter remove their own report photo on a restricted issue', async () => {
+      const doc = fileDoc();
+      bucket.find.mockReturnValue(cursorOf([doc]));
+      issuesService.findOne.mockResolvedValue({
+        _id: new Types.ObjectId(ISSUE_ID),
+        status: IssueStatus.OPEN,
+        hazard: HazardLevel.RESTRICTED,
+        reportedBy: new Types.ObjectId(REPORTER),
+      });
+
+      await service.remove(doc._id.toString(), REPORTER, [Role.CITIZEN]);
+
+      expect(bucket.delete).toHaveBeenCalledWith(doc._id);
+    });
+
+    it('lets an agency remove proof it attached to a restricted issue', async () => {
+      const doc = fileDoc();
+      bucket.find.mockReturnValue(cursorOf([doc]));
+      issuesService.findOne.mockResolvedValue({
+        _id: new Types.ObjectId(ISSUE_ID),
+        status: IssueStatus.OPEN,
+        hazard: HazardLevel.RESTRICTED,
+        reportedBy: new Types.ObjectId(REPORTER),
+      });
+
+      await service.remove(doc._id.toString(), AGENCY_USER, [Role.AGENCY]);
+
+      expect(bucket.delete).toHaveBeenCalledWith(doc._id);
     });
   });
 
@@ -285,11 +322,13 @@ describe('IssueMediaService', () => {
           : cursorOf([]),
       );
 
-      const media = await service.upload(ISSUE_ID, AGENCY_USER, anImage(), [
-        Role.AGENCY,
-      ]);
+      await service.upload(ISSUE_ID, AGENCY_USER, anImage(), [Role.AGENCY]);
 
-      expect(media.purpose).toBe(MediaPurpose.PROOF);
+      // Asserted on what assertMayAttach actually decided — the metadata
+      // written to the new file — rather than on the mocked post-upload
+      // lookup, which would pass even if the wrong purpose were returned.
+      const [, options] = bucket.openUploadStream.mock.calls[0];
+      expect(options.metadata.purpose).toBe(MediaPurpose.PROOF);
     });
 
     it('still refuses a citizen on a restricted issue', async () => {
