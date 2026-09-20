@@ -2,6 +2,8 @@ import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { Types } from 'mongoose';
 import {
+  HAZARD_CONFIDENCE_THRESHOLD,
+  HAZARD_MAX_IMAGES,
   HazardAnswer,
   HazardLevel,
   HazardSource,
@@ -19,6 +21,8 @@ vi.mock('@anthropic-ai/sdk', () => ({
 }));
 
 const enabled = { ANTHROPIC_API_KEY: 'sk-test' };
+
+const anImage = { base64: 'aW1n', contentType: 'image/png' };
 
 const issue = (overrides: Record<string, unknown> = {}) =>
   ({
@@ -132,6 +136,28 @@ describe('IssueHazardService', () => {
     ]);
   });
 
+  // An OBSERVATION id is escalated by the reporter's own tick, not selected
+  // by the model as a follow-up question worth asking. findQuestion() would
+  // resolve it, so the filter must check FOLLOW_UP specifically.
+  it('discards an observation id, even though it exists in the bank', async () => {
+    parse.mockResolvedValue({
+      parsed_output: {
+        dangerous: true,
+        confidence: 0.4,
+        reasoning: 'Cannot tell.',
+        questionIds: ['obs-wires', 'elec-1', 'water-1', 'gen-1'],
+      },
+      model: 'claude-opus-5',
+    });
+    const service = await serviceWith(enabled);
+
+    expect((await service.classify(issue())).questionIds).toEqual([
+      'elec-1',
+      'water-1',
+      'gen-1',
+    ]);
+  });
+
   // Asking one or two questions is worse than asking none: it looks like a
   // process that decided something, when nothing was decided.
   it('asks nothing when fewer than three valid ids survive', async () => {
@@ -162,6 +188,37 @@ describe('IssueHazardService', () => {
     expect(assessment.reasoning).toContain('upstream exploded');
   });
 
+  // readReportImages and issue._id.toString() must sit inside the try: a
+  // GridFS outage is exactly the kind of failure this method promises never
+  // to let escape as a throw.
+  it('fails closed, without throwing, when reading report images rejects', async () => {
+    mediaService = {
+      readReportImages: vi.fn().mockRejectedValue(new Error('gridfs is down')),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        IssueHazardService,
+        { provide: IssueMediaService, useValue: mediaService },
+        { provide: ConfigService, useValue: { get: (k: string) => enabled[k as keyof typeof enabled] } },
+      ],
+    }).compile();
+    const service = module.get(IssueHazardService);
+
+    await expect(service.classify(issue())).resolves.toMatchObject({
+      assessment: { level: HazardLevel.NEEDS_REVIEW },
+    });
+  });
+
+  it('records a missing parsed_output as NEEDS_REVIEW', async () => {
+    parse.mockResolvedValue({ parsed_output: null, model: 'claude-opus-5' });
+    const service = await serviceWith(enabled);
+
+    const { assessment } = await service.classify(issue());
+
+    expect(assessment.level).toBe(HazardLevel.NEEDS_REVIEW);
+    expect(assessment.source).toBe(HazardSource.AI);
+  });
+
   it('fails closed when there is no API key', async () => {
     const service = await serviceWith({});
 
@@ -185,5 +242,77 @@ describe('IssueHazardService', () => {
     expect(assessment.level).toBe(HazardLevel.UNRESTRICTED);
     const [request] = parse.mock.calls[0];
     expect(JSON.stringify(request)).toContain('elec-1');
+  });
+
+  describe('the threshold', () => {
+    // Below the configured hazard threshold, even a verdict that would have
+    // cleared the AI_CONFIDENCE_THRESHOLD default is sent to NEEDS_REVIEW —
+    // proof the hazard gate reads its own env key, not the borrowed default.
+    it('uses HAZARD_CONFIDENCE_THRESHOLD from the environment when set', async () => {
+      parse.mockResolvedValue({
+        parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Routine.', questionIds: [] },
+        model: 'claude-opus-5',
+      });
+      const service = await serviceWith({
+        ...enabled,
+        HAZARD_CONFIDENCE_THRESHOLD: '0.95',
+      });
+
+      const { assessment } = await service.classify(issue());
+
+      expect(assessment.level).toBe(HazardLevel.NEEDS_REVIEW);
+    });
+
+    // An out-of-range override must fall back to the hazard constant, not to
+    // whatever the unrelated verification threshold happens to be.
+    it('falls back to HAZARD_CONFIDENCE_THRESHOLD for an out-of-range override', async () => {
+      parse.mockResolvedValue({
+        parsed_output: {
+          dangerous: false,
+          confidence: HAZARD_CONFIDENCE_THRESHOLD,
+          reasoning: 'Routine.',
+          questionIds: [],
+        },
+        model: 'claude-opus-5',
+      });
+      const service = await serviceWith({
+        ...enabled,
+        HAZARD_CONFIDENCE_THRESHOLD: '1.5',
+      });
+
+      const { assessment } = await service.classify(issue());
+
+      expect(assessment.level).toBe(HazardLevel.UNRESTRICTED);
+    });
+  });
+
+  // Every other test stubs readReportImages to resolve []; this is the one
+  // that exercises the path where photographs actually reach the request.
+  it('sends the report photographs to the model, capped at HAZARD_MAX_IMAGES', async () => {
+    parse.mockResolvedValue({
+      parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Routine.', questionIds: [] },
+      model: 'claude-opus-5',
+    });
+    mediaService = {
+      readReportImages: vi.fn().mockResolvedValue([anImage, anImage]),
+    };
+    const module = await Test.createTestingModule({
+      providers: [
+        IssueHazardService,
+        { provide: IssueMediaService, useValue: mediaService },
+        { provide: ConfigService, useValue: { get: (k: string) => enabled[k as keyof typeof enabled] } },
+      ],
+    }).compile();
+    const service = module.get(IssueHazardService);
+
+    await service.classify(issue());
+
+    expect(mediaService.readReportImages).toHaveBeenCalledWith(
+      expect.any(String),
+      HAZARD_MAX_IMAGES,
+    );
+    const [request] = parse.mock.calls[0];
+    const content = request.messages[0].content;
+    expect(content.filter((b: { type: string }) => b.type === 'image')).toHaveLength(2);
   });
 });
