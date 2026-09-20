@@ -84,6 +84,14 @@ add friction to every report to serve the minority that need it. Asking on low
 confidence puts the friction exactly where it buys information, and shrinks the
 human queue to the genuinely ambiguous.
 
+**Questions never hold an issue open.** An unsure verdict queues the issue for an
+agency immediately and sends the questions alongside. Answering is a fast path
+that may settle the matter before an agency looks; not answering costs nothing
+but the agency's time. Making the reporter's answer a precondition would let an
+abandoned report sit unclaimable and in nobody's queue — stuck rather than
+merely slow — and the alternative, a timeout sweep, needs a scheduler this
+codebase does not have and only converts stuck into late.
+
 ## 1. Contracts
 
 `src/contracts/hazard.ts`:
@@ -159,10 +167,10 @@ issue is created `UNCLASSIFIED`.
 
 **Step 2 — `POST /issues/:id/media`.** Unchanged.
 
-**Step 3 — `POST /issues/:id/classification`.** Reporter only, and only while
-`UNCLASSIFIED`. Anyone else is **403**; an issue already carrying a level is
-**409**, so a second submission cannot re-roll a verdict the reporter dislikes.
-Two phases:
+**Step 3 — `POST /issues/:id/classification`.** Reporter only; anyone else is
+**403**. The first call is allowed only while `UNCLASSIFIED`, and a second
+submission against a settled issue is **409**, so a reporter cannot re-roll a
+verdict they dislike. Two phases:
 
 - **First call.** If any observation was ticked, the issue goes straight to
   `RESTRICTED` with source `REPORTER` and no AI call. Otherwise the classifier
@@ -178,16 +186,22 @@ Two phases:
   The question step earns its keep most here: with no photograph, the reporter
   is the only source of anything the text left out.
   - Confident (≥ 0.7) either way → `UNRESTRICTED` or `RESTRICTED`, done.
-  - Unsure → the model selects 3–5 question ids from the bank; they are stored in
-    `pendingQuestions` and returned. The issue stays `UNCLASSIFIED`.
-  - Error, timeout, or no API key → `NEEDS_REVIEW`.
-- **Second call**, with `answers`. Validated against `pendingQuestions` — every
-  pending question must be answered, and no others. The classifier runs again
-  with the answers included.
-  - Confident → `UNRESTRICTED` or `RESTRICTED`.
-  - Still unsure, or any error → `NEEDS_REVIEW`.
+  - Unsure → `NEEDS_REVIEW`, **and** the model's 3–5 selected question ids are
+    stored in `pendingQuestions` and returned. The issue is in the agency's
+    queue from this moment; the questions are an opportunity, not a gate.
+  - Error, timeout, or no API key → `NEEDS_REVIEW`, no questions.
+- **Second call**, with `answers`. Accepted while `pendingQuestions` is set and
+  no human has yet decided. Validated against `pendingQuestions` — every pending
+  question must be answered, and no others. The classifier runs again with the
+  answers included.
+  - Confident → `UNRESTRICTED` or `RESTRICTED`, and `pendingQuestions` is cleared.
+  - Still unsure, or any error → stays `NEEDS_REVIEW`, `pendingQuestions` cleared.
 
 There is no third round. One set of questions, then a decision or a human.
+
+Because an unsure first call already sets `NEEDS_REVIEW`, the reporter can
+abandon at any point without stranding the issue. The worst case is an agency
+doing work an answer might have saved.
 
 ## 4. IssueHazardService
 
@@ -253,6 +267,15 @@ the same and override an agency. Both are recorded in `hazardAssessment` with
 `NEEDS_REVIEW` and `UNCLASSIFIED` cannot be set by hand: a human decision is
 always a decision.
 
+A human decision clears `pendingQuestions`. Answers arriving afterwards are
+**409** — once a person has ruled, the reporter's answers are moot, and letting
+them re-open the question would put the gate back in the hands of the one party
+with a motive to see it opened.
+
+The queue shows `pendingQuestions` against each row, so an agency can tell a
+report whose questions went out two minutes ago from one where classification
+failed outright, and choose which to pick up.
+
 ## 7. Agency resolution
 
 A restricted issue cannot be claimed, and today that is a dead end — agencies
@@ -280,6 +303,12 @@ cannot claim (citizen-only) and cannot set `RESOLVED`. So:
 | `POST /issues/:id/classification` (with `answers`) | the reporter | re-classify |
 | `PATCH /issues/:id/hazard` | AGENCY, ADMIN | set level with a reason |
 | `GET /issues?hazard=NEEDS_REVIEW` | public | the review queue |
+| `GET /issues?hazard=UNCLASSIFIED` | public | reported but never submitted |
+
+`hazard` is a filter on the existing listing, so both queues come free with the
+index. The second matters: a reporter who abandons before step 3 leaves an issue
+`UNCLASSIFIED`, and without a view of those it would be in nobody's queue at
+all. Neither queue needs a scheduler.
 
 `PublicIssue` gains `hazard`, `hazardAssessment` and `pendingQuestions`.
 `observations` and `answers` are exposed too: the public record should show what
@@ -307,7 +336,10 @@ Unit:
 - Question selection: ids outside the bank discarded; fewer than three survivors
   becomes `NEEDS_REVIEW`.
 - Answer validation: missing an answer, answering an unasked question, answering
-  when nothing is pending.
+  when nothing is pending, answering after a human has decided (409).
+- An unsure first call sets `NEEDS_REVIEW` *and* returns questions, rather than
+  leaving the issue `UNCLASSIFIED`.
+- A human decision clears `pendingQuestions`.
 - Claim refused at each non-`UNRESTRICTED` level, with the right message, before
   the already-claimed check.
 - `PATCH /hazard`: reason required, `NEEDS_REVIEW` rejected as a target, citizen
@@ -315,7 +347,10 @@ Unit:
 - Agency resolution: proof required, `agencyResolverId` set, no points awarded,
   the resolver cannot confirm.
 
-E2E: the whole three-step report; a restricted issue refusing a claim, then
+E2E: an unsure report reaching the `NEEDS_REVIEW` queue immediately, then being
+settled by the reporter's answers without an agency touching it; the same report
+abandoned instead, and an agency classifying it by hand; the whole three-step
+report; a restricted issue refusing a claim, then
 resolved by one agency user and confirmed by a second, reaching `VERIFIED` with
 no ledger entry written; the first agency user refused when they try to confirm
 their own fix; the `NEEDS_REVIEW` queue.
@@ -328,7 +363,8 @@ that the answers reach the second call.
 | Risk | Mitigation |
 |---|---|
 | The model clears something genuinely dangerous | Confident-safe is the only auto-clear, the reporter's checkboxes override it, and an agency can restrict it afterwards. Residual risk is real and cannot be engineered to zero. |
-| Reporters abandon at the question step | The issue stays `UNCLASSIFIED` and unclaimable, which is safe but invisible. No sweep job in this slice; noted as a gap. |
+| Reporters abandon at the question step | Already in the agency queue as `NEEDS_REVIEW`; the questions were an opportunity, not a gate. No sweep job needed. |
+| Reporters abandon before submitting at all | The issue stays `UNCLASSIFIED` and unclaimable, and shows in the `?hazard=UNCLASSIFIED` queue so it is visible to an agency rather than lost. |
 | A reporter answers dishonestly to unblock an issue | Answers cannot clear `RESTRICTED`; they are stored and attributed; the reporter cannot claim their own issue. |
 | The bank has no question for an unanticipated hazard | The model can still flag danger directly, and anything unresolved becomes `NEEDS_REVIEW`. |
 | Two AI calls per unsure report | Only on unsure reports; the confident path is one call, and a ticked observation is none. |
@@ -340,6 +376,8 @@ that the answers reach the second call.
 - A report passes through create → media → classification, and receives either a
   level or 3–5 questions drawn from the bank.
 - Every AI failure yields `NEEDS_REVIEW`.
+- No abandoned report is invisible: an unsure one is already queued, and an
+  unsubmitted one is listable.
 - An agency can take a `RESTRICTED` issue to `VERIFIED` with evidence, paying
   nobody, and cannot confirm its own fix.
 - An agency can classify the `NEEDS_REVIEW` queue; an admin can override.
