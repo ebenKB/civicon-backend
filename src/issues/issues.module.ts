@@ -7,6 +7,7 @@ import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaController } from './issue-media.controller.js';
 import { IssueMediaService } from './issue-media.service.js';
 import { IssueVerificationService } from './issue-verification.service.js';
+import { HazardQuestionsController } from './hazard-questions.controller.js';
 import { IssuesController } from './issues.controller.js';
 import { IssuesService } from './issues.service.js';
 import { Issue, IssueSchema } from './schemas/issue.schema.js';
@@ -17,7 +18,7 @@ import { Issue, IssueSchema } from './schemas/issue.schema.js';
     PointsModule,
     UsersModule,
   ],
-  controllers: [IssuesController, IssueMediaController],
+  controllers: [IssuesController, HazardQuestionsController, IssueMediaController],
   providers: [
     IssuesService,
     IssueLifecycleService,

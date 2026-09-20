@@ -49,7 +49,7 @@ expires the user signs in again. Store it wherever your framework prefers;
 
 Routes are protected by default. The only routes reachable without a token are
 the ones marked **public** in this guide: browsing issues, reading an issue,
-listing its media, and downloading a file.
+listing its media, downloading a file, and fetching the hazard question bank.
 
 ### POST /auth/register — public
 
@@ -362,11 +362,35 @@ Not every issue is safe for a member of the public to fix. `hazard` gates
 freshly reported issue is `UNCLASSIFIED` and cannot be claimed until it goes
 through this flow.
 
+**Fetch the questions; do not hardcode them.** `GET /hazard/questions` is
+public — no token — and serves the whole bank:
+
+```json
+{
+  "observations": [
+    { "id": "obs-wires", "text": "I can see loose, broken or hanging electrical wires", "kind": "OBSERVATION" }
+  ],
+  "followUps": [
+    { "id": "elec-1", "text": "Are any wires hanging down, broken, or lying on the ground?", "kind": "FOLLOW_UP" }
+  ]
+}
+```
+
+`observations` are the checkboxes for the report form; `followUps` is the pool
+`pendingQuestions` draws from, so fetching once gives you the text for both.
+The response is cacheable for an hour and only changes on a redeploy — fetch it
+at app start and keep it.
+
+The ids are a stable contract, but **the wording is not**: it is still awaiting
+review by someone with field-safety knowledge, and it is read by people standing
+next to a hazard. A copy pasted into the client would go stale silently, and two
+systems would be asking different safety questions. The lists below are for
+reading while you build, not for shipping.
+
 **Step 1 — tick what you can see, when reporting.** `POST /issues` (above)
-takes an optional `observations` array of question ids from the fixed list
-below. Offer these as checkboxes on the report form. Ticking any one of them
-restricts the issue outright once classified — no AI call needed for that
-verdict.
+takes an optional `observations` array of question ids. Offer them as checkboxes
+on the report form. Ticking any one of them restricts the issue outright once
+classified — no AI call needed for that verdict.
 
 ```ts
 const OBSERVATION_QUESTIONS = [
@@ -410,8 +434,8 @@ like the other mutation routes.
 available.
 
 **Step 3 — answer the follow-ups, or wait.** Only when step 2 came back with
-`pendingQuestions`. Those are ids from a second, larger set — the follow-ups —
-and you render the text yourself. Each answer is `'YES' | 'NO' | 'UNSURE'`.
+`pendingQuestions`. Those are ids from the `followUps` half of
+`GET /hazard/questions`; look each one up there to render it. Each answer is `'YES' | 'NO' | 'UNSURE'`.
 
 ```ts
 const FOLLOW_UP_QUESTIONS = [
@@ -953,13 +977,6 @@ Design around these absences; don't wait for them.
 - **Notifications** — nothing pushes. A volunteer learns their proof was rejected
   by reloading. If your screens need to feel live, poll the issue.
 - **Search** — filter by the fields in §4 only; no free-text search.
-- **An endpoint for the hazard question bank** — the ids are a stable server
-  contract, but nothing serves the text at runtime, so §4a lists all 26 and you
-  hardcode them. Be aware this is a real drift risk rather than a tidy one: the
-  wording is still awaiting review by someone with field-safety knowledge, so it
-  *will* change, and a copy in the client won't know. Ask the backend team for a
-  `GET /hazard/questions` endpoint before you ship — it is a small change on
-  our side and removes the duplication entirely.
 - **Sponsors** — the role exists and does nothing. No funding, no bounties.
 - **Spending points** — earn only; no rewards or leaderboard.
 - **Reputation** — sits at 100 for everyone. Don't build UI on it.
@@ -1050,6 +1067,14 @@ export const api = {
     request<Issue>(`/issues/${id}/status`, { method: 'PATCH', body: JSON.stringify(b) }),
 
   myPoints: () => request<{ balance: number; transactions: PointTransaction[] }>('/users/me/points'),
+
+  // Public, cacheable, changes only on a redeploy — fetch once at app start
+  // rather than hardcoding the wording.
+  hazardQuestions: () =>
+    request<{
+      observations: HazardQuestion[];
+      followUps: HazardQuestion[];
+    }>('/hazard/questions'),
 
   mediaUrl: (media: Media) => `${BASE}${media.url}`,
 };

@@ -291,4 +291,34 @@ describe('Issue hazard classification (e2e)', () => {
     expect(points.body.balance).toBe(0);
     expect(points.body.transactions).toEqual([]);
   });
+
+  // Public on purpose: the report form needs the checkbox wording before
+  // anyone has signed in.
+  it('serves the question bank without a token', async () => {
+    const { body } = await request(app.getHttpServer())
+      .get('/hazard/questions')
+      .expect(200);
+
+    expect(body.observations.length).toBeGreaterThan(0);
+    expect(body.followUps.length).toBeGreaterThan(0);
+    expect(body.observations.map((q: { id: string }) => q.id)).toContain(
+      'obs-wires',
+    );
+    expect(body.followUps.map((q: { id: string }) => q.id)).toContain('elec-1');
+  });
+
+  // The whole point of the endpoint: ids returned in pendingQuestions must be
+  // renderable from what it serves, or a client is no better off.
+  it('covers every id the classifier can put in pendingQuestions', async () => {
+    const { body } = await request(app.getHttpServer())
+      .get('/hazard/questions')
+      .expect(200);
+
+    for (const question of body.followUps) {
+      expect(typeof question.text).toBe('string');
+      expect(question.text.length).toBeGreaterThan(10);
+    }
+    expect(body.observations[0].tags).toBeUndefined();
+  });
+
 });
