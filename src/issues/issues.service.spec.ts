@@ -6,7 +6,13 @@ import {
 import { getModelToken } from '@nestjs/mongoose';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { AiOutcome, IssueCategory, IssueStatus } from '../contracts/index.js';
+import {
+  AiOutcome,
+  HazardLevel,
+  HazardSource,
+  IssueCategory,
+  IssueStatus,
+} from '../contracts/index.js';
 import { IssuesService } from './issues.service.js';
 import { Issue } from './schemas/issue.schema.js';
 
@@ -31,10 +37,16 @@ describe('IssuesService', () => {
     create: ReturnType<typeof vi.fn>;
     find: ReturnType<typeof vi.fn>;
     findById: ReturnType<typeof vi.fn>;
+    findOneAndUpdate: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(async () => {
-    model = { create: vi.fn(), find: vi.fn(), findById: vi.fn() };
+    model = {
+      create: vi.fn(),
+      find: vi.fn(),
+      findById: vi.fn(),
+      findOneAndUpdate: vi.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -229,6 +241,110 @@ describe('IssuesService', () => {
       } as never);
 
       expect(issue.status).toBe(IssueStatus.OPEN);
+    });
+
+    // A classified issue's verdict describes the text and photos the
+    // classifier actually saw. Editing any of the classifier's inputs makes
+    // that verdict stale, so the issue goes back to UNCLASSIFIED and must be
+    // classified again — otherwise "the live cable is down and sparking"
+    // could be typed in after a confident UNRESTRICTED clearance and the
+    // issue would stay claimable.
+    describe('when the classifier inputs change', () => {
+      const classifiedIssue = () => ({
+        ...ownedIssue(),
+        hazard: HazardLevel.UNRESTRICTED,
+        hazardAssessment: {
+          level: HazardLevel.UNRESTRICTED,
+          source: HazardSource.AI,
+          confidence: 0.92,
+          reasoning: 'Routine streetlight repair.',
+          assessedAt: new Date(),
+        },
+        pendingQuestions: ['elec-1'],
+        answers: [{ questionId: 'elec-1', answer: 'NO' }],
+      });
+
+      it.each([
+        ['title', { title: 'A different title entirely' }],
+        ['description', { description: 'A live cable is down and sparking.' }],
+        ['category', { category: IssueCategory.ELECTRICITY }],
+        ['location', { location: 'A different corner' }],
+      ])('resets hazard to UNCLASSIFIED when %s changes', async (_field, patch) => {
+        const issue = classifiedIssue();
+        issue.category = IssueCategory.DRAINAGE;
+        model.findById.mockReturnValue(execOf(issue));
+
+        const result = await service.updateOwn(REPORTER, REPORTER, patch);
+
+        expect(result.hazard).toBe(HazardLevel.UNCLASSIFIED);
+        expect(result.hazardAssessment).toBeUndefined();
+        expect(result.pendingQuestions).toBeUndefined();
+        expect(result.answers).toBeUndefined();
+      });
+
+      it('does not reset when the edit changes nothing', async () => {
+        const issue = classifiedIssue();
+        issue.category = IssueCategory.DRAINAGE;
+        model.findById.mockReturnValue(execOf(issue));
+
+        const result = await service.updateOwn(REPORTER, REPORTER, {
+          title: issue.title,
+          category: IssueCategory.DRAINAGE,
+        });
+
+        expect(result.hazard).toBe(HazardLevel.UNRESTRICTED);
+        expect(result.hazardAssessment).toBeDefined();
+        expect(result.pendingQuestions).toEqual(['elec-1']);
+      });
+
+      it('does nothing extra when the issue was never classified', async () => {
+        const issue = ownedIssue();
+        model.findById.mockReturnValue(execOf(issue));
+
+        const result = await service.updateOwn(REPORTER, REPORTER, {
+          title: 'Blocked drain, worse now',
+        });
+
+        expect(result.hazard).toBe(HazardLevel.UNCLASSIFIED);
+      });
+    });
+  });
+
+  describe('updateIfMatches', () => {
+    const ISSUE_ID = '507f1f77bcf86cd799439033';
+
+    // A guarded write for callers spanning an async gap (an AI call that can
+    // take up to a minute) where a human decision might land first: the
+    // filter re-asserts the exact state the caller started from, atomically,
+    // so a write that lost the race touches nothing.
+    it('merges the expected state into the id filter and returns the updated document', async () => {
+      const updated = { hazard: HazardLevel.UNRESTRICTED };
+      model.findOneAndUpdate.mockReturnValue(execOf(updated));
+
+      const result = await service.updateIfMatches(
+        ISSUE_ID,
+        { hazard: HazardLevel.UNCLASSIFIED },
+        { hazard: HazardLevel.UNRESTRICTED },
+      );
+
+      const [filter, update, options] = model.findOneAndUpdate.mock.calls[0];
+      expect(filter._id.toString()).toBe(ISSUE_ID);
+      expect(filter.hazard).toBe(HazardLevel.UNCLASSIFIED);
+      expect(update).toEqual({ hazard: HazardLevel.UNRESTRICTED });
+      expect(options).toMatchObject({ returnDocument: 'after' });
+      expect(result).toBe(updated);
+    });
+
+    it('returns null when the expected state no longer matches', async () => {
+      model.findOneAndUpdate.mockReturnValue(execOf(null));
+
+      const result = await service.updateIfMatches(
+        ISSUE_ID,
+        { hazard: HazardLevel.UNCLASSIFIED },
+        { hazard: HazardLevel.RESTRICTED },
+      );
+
+      expect(result).toBeNull();
     });
   });
 });

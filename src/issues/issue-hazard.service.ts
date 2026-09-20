@@ -223,8 +223,9 @@ export class IssueHazardService {
       throw new ConflictException('This issue has already been classified');
     }
 
+    let pending: string[] = [];
     if (answering) {
-      const pending = issue.pendingQuestions ?? [];
+      pending = issue.pendingQuestions ?? [];
       if (pending.length === 0) {
         throw new ConflictException('This issue is not waiting on any answers');
       }
@@ -234,18 +235,42 @@ export class IssueHazardService {
           'Answer every question that was asked, and only those',
         );
       }
-      issue.answers = dto.answers;
     }
 
     const { assessment, questionIds } = await this.classify(issue, dto.answers);
 
-    issue.hazard = assessment.level;
-    issue.hazardAssessment = assessment;
-    // Cleared on the second pass whatever happens: one round of questions,
-    // then a decision or a human.
-    issue.pendingQuestions = answering ? [] : questionIds;
+    const update: Record<string, unknown> = {
+      hazard: assessment.level,
+      hazardAssessment: assessment,
+      // Cleared on the second pass whatever happens: one round of questions,
+      // then a decision or a human.
+      pendingQuestions: answering ? [] : questionIds,
+    };
+    if (answering) {
+      update.answers = dto.answers;
+    }
 
-    return issue.save();
+    // classify() above can run for up to a minute. If a human rules on this
+    // issue through PATCH /issues/:id/hazard while it is in flight, this
+    // save must not be the one that gets the last word: the filter
+    // re-asserts the exact state this call started from — hazard still
+    // UNCLASSIFIED on a first call, the same pendingQuestions on an answers
+    // call — as a single atomic conditional update, so a write that lost the
+    // race touches nothing rather than clobbering a human decision with a
+    // stale AI verdict.
+    const expected = answering
+      ? { pendingQuestions: pending }
+      : { hazard: HazardLevel.UNCLASSIFIED };
+
+    const result = await this.issuesService.updateIfMatches(issueId, expected, update);
+
+    if (!result) {
+      throw new ConflictException(
+        'This issue was already decided while classification was running',
+      );
+    }
+
+    return result;
   }
 
   /**
@@ -348,7 +373,10 @@ function resolveHazardThreshold(raw: string | undefined): number {
   if (raw === undefined || raw === '' || Number.isNaN(parsed)) {
     return HAZARD_CONFIDENCE_THRESHOLD;
   }
-  if (parsed < 0 || parsed > 1) {
+  // <= 0, not < 0: a zero threshold makes `confidence >= threshold` true for
+  // every verdict, including a 0.02-confidence one — the gate this constant
+  // exists to enforce would be disabled outright rather than merely loosened.
+  if (parsed <= 0 || parsed > 1) {
     return HAZARD_CONFIDENCE_THRESHOLD;
   }
   return parsed;

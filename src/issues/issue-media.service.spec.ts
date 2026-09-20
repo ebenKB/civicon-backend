@@ -404,6 +404,130 @@ describe('IssueMediaService', () => {
     });
   });
 
+  // A REPORT photo attached after a text-only verdict is new evidence the
+  // classifier never saw — the same evasion as editing the description, just
+  // through the other input the model reads. See IssuesService.updateOwn for
+  // the sibling fix on title/description/category/location.
+  describe('reclassification on new report evidence', () => {
+    const successfulUpload = async (issue: Record<string, unknown>) => {
+      issuesService.findOne.mockResolvedValue(issue);
+
+      const stream = new EventEmitter() as EventEmitter & {
+        id: Types.ObjectId;
+        end: (buf: Buffer) => void;
+      };
+      stream.id = new Types.ObjectId();
+      stream.end = () => stream.emit('finish');
+      bucket.openUploadStream.mockReturnValue(stream);
+
+      bucket.find.mockImplementation((filter: Record<string, unknown>) =>
+        filter._id
+          ? cursorOf([
+              fileDoc({
+                _id: stream.id,
+                metadata: {
+                  issueId: new Types.ObjectId(ISSUE_ID),
+                  uploadedBy: new Types.ObjectId(REPORTER),
+                  contentType: 'image/png',
+                  purpose: (issue as { status?: IssueStatus }).status ===
+                  IssueStatus.OPEN
+                    ? MediaPurpose.REPORT
+                    : MediaPurpose.PROOF,
+                },
+              }),
+            ])
+          : cursorOf([]),
+      );
+
+      await service.upload(ISSUE_ID, REPORTER, anImage(), [Role.CITIZEN]);
+    };
+
+    it('resets a classified issue back to UNCLASSIFIED on a new REPORT upload', async () => {
+      const issue = {
+        _id: new Types.ObjectId(ISSUE_ID),
+        status: IssueStatus.OPEN,
+        reportedBy: new Types.ObjectId(REPORTER),
+        hazard: HazardLevel.UNRESTRICTED,
+        hazardAssessment: {
+          level: HazardLevel.UNRESTRICTED,
+          source: 'AI',
+          confidence: 0.9,
+          reasoning: 'Routine.',
+          assessedAt: new Date(),
+        },
+        pendingQuestions: ['elec-1'],
+        answers: [{ questionId: 'elec-1', answer: 'NO' }],
+        save: vi.fn().mockImplementation(function (this: unknown) {
+          return Promise.resolve(this);
+        }),
+      };
+
+      await successfulUpload(issue);
+
+      expect(issue.hazard).toBe(HazardLevel.UNCLASSIFIED);
+      expect(issue.hazardAssessment).toBeUndefined();
+      expect(issue.pendingQuestions).toBeUndefined();
+      expect(issue.answers).toBeUndefined();
+      expect(issue.save).toHaveBeenCalled();
+    });
+
+    it('does not save at all when the issue was already UNCLASSIFIED', async () => {
+      const issue = {
+        _id: new Types.ObjectId(ISSUE_ID),
+        status: IssueStatus.OPEN,
+        reportedBy: new Types.ObjectId(REPORTER),
+        hazard: HazardLevel.UNCLASSIFIED,
+        save: vi.fn(),
+      };
+
+      await successfulUpload(issue);
+
+      expect(issue.save).not.toHaveBeenCalled();
+    });
+
+    // A PROOF upload is evidence of a fix, not new report content — it must
+    // never touch the classification, restricted or not.
+    it('does not reset a restricted issue on a PROOF upload by an agency', async () => {
+      const issue = {
+        _id: new Types.ObjectId(ISSUE_ID),
+        status: IssueStatus.OPEN,
+        reportedBy: new Types.ObjectId(REPORTER),
+        hazard: HazardLevel.RESTRICTED,
+        hazardAssessment: { level: HazardLevel.RESTRICTED, source: 'AI', assessedAt: new Date() },
+        save: vi.fn(),
+      };
+      issuesService.findOne.mockResolvedValue(issue);
+
+      const stream = new EventEmitter() as EventEmitter & {
+        id: Types.ObjectId;
+        end: (buf: Buffer) => void;
+      };
+      stream.id = new Types.ObjectId();
+      stream.end = () => stream.emit('finish');
+      bucket.openUploadStream.mockReturnValue(stream);
+      bucket.find.mockImplementation((filter: Record<string, unknown>) =>
+        filter._id
+          ? cursorOf([
+              fileDoc({
+                _id: stream.id,
+                metadata: {
+                  issueId: new Types.ObjectId(ISSUE_ID),
+                  uploadedBy: new Types.ObjectId(AGENCY_USER),
+                  contentType: 'image/png',
+                  purpose: MediaPurpose.PROOF,
+                },
+              }),
+            ])
+          : cursorOf([]),
+      );
+
+      await service.upload(ISSUE_ID, AGENCY_USER, anImage(), [Role.AGENCY]);
+
+      expect(issue.hazard).toBe(HazardLevel.RESTRICTED);
+      expect(issue.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('countProofBy', () => {
     it("counts only the named volunteer's proof", async () => {
       bucket.find.mockReturnValue(cursorOf([fileDoc(), fileDoc()]));

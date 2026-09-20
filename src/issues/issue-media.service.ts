@@ -30,6 +30,7 @@ import {
 } from './issue-media-response.js';
 import { MediaStream, UploadedFile } from './issue-media.types.js';
 import { IssuesService } from './issues.service.js';
+import type { IssueDocument } from './schemas/issue.schema.js';
 import { extractFrames } from './video-frames.js';
 
 export interface MediaBytes {
@@ -76,7 +77,7 @@ export class IssueMediaService implements OnModuleInit {
     file: UploadedFile,
     roles: Role[],
   ): Promise<PublicMedia> {
-    const purpose = await this.assertMayAttach(issueId, actorId, roles);
+    const { purpose, issue } = await this.assertMayAttach(issueId, actorId, roles);
 
     const rejection = checkUpload(file.mimetype, file.size);
     if (rejection?.reason === 'type') {
@@ -115,6 +116,21 @@ export class IssueMediaService implements OnModuleInit {
     });
 
     const stored = await this.findFile(upload.id.toString());
+
+    // A REPORT photo attached after a text-only verdict is new evidence the
+    // classifier never saw — the same evasion as editing the description,
+    // just through the other input the model reads (see
+    // IssuesService.updateOwn for the sibling fix). Checked after the upload
+    // actually succeeds, so a rejected or oversize file never resets a
+    // classification for nothing. A PROOF upload never reaches here.
+    if (purpose === MediaPurpose.REPORT && issue.hazard !== HazardLevel.UNCLASSIFIED) {
+      issue.hazard = HazardLevel.UNCLASSIFIED;
+      issue.hazardAssessment = undefined;
+      issue.pendingQuestions = undefined;
+      issue.answers = undefined;
+      await issue.save();
+    }
+
     return toPublicMedia(stored);
   }
 
@@ -210,7 +226,7 @@ export class IssueMediaService implements OnModuleInit {
     roles: Role[],
     action: 'attach' | 'remove' = 'attach',
     file?: MediaFileDocument,
-  ): Promise<MediaPurpose> {
+  ): Promise<{ purpose: MediaPurpose; issue: IssueDocument }> {
     const issue = await this.issuesService.findOne(issueId);
 
     // A restricted issue is the agency's to fix, so it is also theirs to add
@@ -231,7 +247,7 @@ export class IssueMediaService implements OnModuleInit {
             'An agency may only remove media it attached itself',
           );
         }
-        return MediaPurpose.PROOF;
+        return { purpose: MediaPurpose.PROOF, issue };
       }
       if (action === 'attach') {
         throw new ForbiddenException(
@@ -249,7 +265,7 @@ export class IssueMediaService implements OnModuleInit {
           'You can only attach media to issues you reported',
         );
       }
-      return MediaPurpose.REPORT;
+      return { purpose: MediaPurpose.REPORT, issue };
     }
 
     if (
@@ -261,7 +277,7 @@ export class IssueMediaService implements OnModuleInit {
           'Only the volunteer holding this issue can attach proof of work',
         );
       }
-      return MediaPurpose.PROOF;
+      return { purpose: MediaPurpose.PROOF, issue };
     }
 
     throw new ConflictException(

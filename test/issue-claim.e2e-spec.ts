@@ -290,6 +290,16 @@ describe('Issue claim & resolution (e2e)', () => {
         .expect(201);
       expect(reportPhoto.body.purpose).toBe(MediaPurpose.REPORT);
 
+      // The outer beforeEach classifies before this photo exists, so a fresh
+      // REPORT upload against a classified issue resets hazard back to
+      // UNCLASSIFIED (the classifier never saw this photo) — reclassify by
+      // hand again, exactly as a reporter would resubmit for classification.
+      await request(app.getHttpServer())
+        .patch(`/issues/${issueId}/hazard`)
+        .set(auth(agencyToken))
+        .send({ level: 'UNRESTRICTED', reason: 'Reclassified after the photo' })
+        .expect(200);
+
       await claimBy(volunteerToken).expect(200);
 
       const proofPhoto = await attachProof(volunteerToken).expect(201);

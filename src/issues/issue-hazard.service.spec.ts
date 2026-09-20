@@ -44,7 +44,10 @@ const issue = (overrides: Record<string, unknown> = {}) =>
 
 describe('IssueHazardService', () => {
   let mediaService: { readReportImages: ReturnType<typeof vi.fn> };
-  let issuesService: { findOne: ReturnType<typeof vi.fn> };
+  let issuesService: {
+    findOne: ReturnType<typeof vi.fn>;
+    updateIfMatches: ReturnType<typeof vi.fn>;
+  };
 
   const serviceWith = async (config: Record<string, string>) => {
     mediaService = { readReportImages: vi.fn().mockResolvedValue([]) };
@@ -66,7 +69,7 @@ describe('IssueHazardService', () => {
   // test that already passed.
   beforeEach(() => {
     parse.mockReset();
-    issuesService = { findOne: vi.fn() };
+    issuesService = { findOne: vi.fn(), updateIfMatches: vi.fn() };
   });
 
   // The reporter saw it in person. A tick is believed without asking a model.
@@ -295,6 +298,50 @@ describe('IssueHazardService', () => {
 
       expect(assessment.level).toBe(HazardLevel.UNRESTRICTED);
     });
+
+    // 0 would make `confidence >= threshold` true unconditionally — a
+    // 0.02-confidence not-dangerous reading would clear the issue outright.
+    // Zero must fall back to the real default exactly like any other
+    // out-of-range value, not be honoured verbatim.
+    it('falls back to HAZARD_CONFIDENCE_THRESHOLD when the override is zero', async () => {
+      parse.mockResolvedValue({
+        parsed_output: {
+          dangerous: false,
+          confidence: 0.02,
+          reasoning: 'Barely looked at it.',
+          questionIds: ['elec-1', 'elec-2', 'water-1'],
+        },
+        model: 'claude-opus-5',
+      });
+      const service = await serviceWith({
+        ...enabled,
+        HAZARD_CONFIDENCE_THRESHOLD: '0',
+      });
+
+      const { assessment } = await service.classify(issue());
+
+      expect(assessment.level).toBe(HazardLevel.NEEDS_REVIEW);
+    });
+
+    it('falls back to HAZARD_CONFIDENCE_THRESHOLD for a negative override', async () => {
+      parse.mockResolvedValue({
+        parsed_output: {
+          dangerous: false,
+          confidence: 0.02,
+          reasoning: 'Barely looked at it.',
+          questionIds: ['elec-1', 'elec-2', 'water-1'],
+        },
+        model: 'claude-opus-5',
+      });
+      const service = await serviceWith({
+        ...enabled,
+        HAZARD_CONFIDENCE_THRESHOLD: '-0.5',
+      });
+
+      const { assessment } = await service.classify(issue());
+
+      expect(assessment.level).toBe(HazardLevel.NEEDS_REVIEW);
+    });
   });
 
   // Every other test stubs readReportImages to resolve []; this is the one
@@ -332,12 +379,21 @@ describe('IssueHazardService', () => {
     const REPORTER = new Types.ObjectId();
     const STRANGER = new Types.ObjectId();
 
+    // Standing in for a real conditional `findOneAndUpdate`: applies the
+    // update onto the same document object and returns it, exactly as if the
+    // guard had matched. Individual tests override `issuesService
+    // .updateIfMatches` to return null instead, simulating a lost race.
     const saved = () => {
       const document = issue({
         reportedBy: REPORTER,
         hazard: HazardLevel.UNCLASSIFIED,
-        save: vi.fn().mockImplementation(function (this: unknown) { return this; }),
       });
+      issuesService.updateIfMatches = vi.fn(
+        (_id: string, _expected: unknown, update: Record<string, unknown>) => {
+          Object.assign(document, update);
+          return Promise.resolve(document);
+        },
+      );
       return document;
     };
 
@@ -430,6 +486,85 @@ describe('IssueHazardService', () => {
           answers: [{ questionId: 'elec-1', answer: HazardAnswer.NO }],
         }),
       ).rejects.toThrow(ConflictException);
+    });
+
+    describe('the guarded write', () => {
+      // classify() can take up to a minute. If an agency's PATCH
+      // /issues/:id/hazard lands a RESTRICTED decision while it is running,
+      // the save below must not be the one that gets the last word.
+      it('guards the first-call save on the issue still being UNCLASSIFIED', async () => {
+        parse.mockResolvedValue({
+          parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Routine.', questionIds: [] },
+          model: 'claude-opus-5',
+        });
+        const document = saved();
+        issuesService.findOne.mockResolvedValue(document);
+        const service = await serviceWith(enabled);
+
+        await service.submit(document._id.toString(), REPORTER.toString(), {});
+
+        const [, expected] = issuesService.updateIfMatches.mock.calls[0];
+        expect(expected).toEqual({ hazard: HazardLevel.UNCLASSIFIED });
+      });
+
+      it('guards the answers-call save on pendingQuestions still matching what was asked', async () => {
+        parse.mockResolvedValue({
+          parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Cleared.', questionIds: [] },
+          model: 'claude-opus-5',
+        });
+        const document = saved();
+        document.hazard = HazardLevel.NEEDS_REVIEW;
+        document.pendingQuestions = ['elec-1'];
+        issuesService.findOne.mockResolvedValue(document);
+        const service = await serviceWith(enabled);
+
+        await service.submit(document._id.toString(), REPORTER.toString(), {
+          answers: [{ questionId: 'elec-1', answer: HazardAnswer.NO }],
+        });
+
+        const [, expected] = issuesService.updateIfMatches.mock.calls[0];
+        expect(expected).toEqual({ pendingQuestions: ['elec-1'] });
+      });
+
+      // The interleaving this exists for: a human's RESTRICTED lands first,
+      // so the guard no longer matches, and the late AI verdict must not
+      // overwrite it.
+      it('leaves a human decision standing when a late confident verdict loses the race', async () => {
+        parse.mockResolvedValue({
+          parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Routine.', questionIds: [] },
+          model: 'claude-opus-5',
+        });
+        const document = saved();
+        issuesService.findOne.mockResolvedValue(document);
+        // An agency's PATCH .../hazard already moved this issue to
+        // RESTRICTED while classify() was in flight, so the conditional
+        // update's filter (hazard still UNCLASSIFIED) no longer matches.
+        issuesService.updateIfMatches = vi.fn().mockResolvedValue(null);
+        const service = await serviceWith(enabled);
+
+        await expect(
+          service.submit(document._id.toString(), REPORTER.toString(), {}),
+        ).rejects.toThrow(ConflictException);
+      });
+
+      it('leaves a human decision standing when a late answers-call loses the race', async () => {
+        parse.mockResolvedValue({
+          parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Cleared.', questionIds: [] },
+          model: 'claude-opus-5',
+        });
+        const document = saved();
+        document.hazard = HazardLevel.NEEDS_REVIEW;
+        document.pendingQuestions = ['elec-1'];
+        issuesService.findOne.mockResolvedValue(document);
+        issuesService.updateIfMatches = vi.fn().mockResolvedValue(null);
+        const service = await serviceWith(enabled);
+
+        await expect(
+          service.submit(document._id.toString(), REPORTER.toString(), {
+            answers: [{ questionId: 'elec-1', answer: HazardAnswer.NO }],
+          }),
+        ).rejects.toThrow(ConflictException);
+      });
     });
   });
 

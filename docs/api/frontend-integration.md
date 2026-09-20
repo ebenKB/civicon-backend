@@ -502,7 +502,7 @@ entitled to.
 | `POST /issues/:id/claim` | any CITIZEN except the reporter | OPEN → CLAIMED | **409** already claimed · **403** you reported it, or `hazard !== 'UNRESTRICTED'` (§4a) · **409** not OPEN |
 | `DELETE /issues/:id/claim` | the holder | back to OPEN; clears `volunteer`, `claimedAt`, `resolvedAt`, `resolutionNote` | **403** not the holder |
 | `POST /issues/:id/start` | the holder | CLAIMED → IN_PROGRESS | **403** not the holder |
-| `POST /issues/:id/resolution` | the holder | → RESOLVED (or AI_APPROVED) | **400** no proof photo · **403** not the holder |
+| `POST /issues/:id/resolution` | the holder, or an AGENCY actor when `hazard === 'RESTRICTED'` | → RESOLVED (or AI_APPROVED) | **400** no proof photo · **403** not the holder (and not AGENCY on a restricted issue) |
 
 All four return **200** with the updated `Issue` (not 201 — nothing is created).
 
@@ -567,13 +567,19 @@ evidence, the second needs a volunteer, the third belongs to the AI.
   `statusReason` you saw earlier is still there.
 
 **A user cannot confirm their own work.** Someone holding both CITIZEN and AGENCY
-who fixed the issue themselves gets:
+who fixed the issue themselves — or an AGENCY actor who resolved a `RESTRICTED`
+issue themselves — gets:
 
 ```json
 { "statusCode": 403, "message": "You cannot verify work you did yourself", "error": "Forbidden" }
 ```
 
-Hide the confirm button when `issue.volunteer?.id === currentUser.id`.
+Hide the confirm button when `issue.volunteer?.id === currentUser.id`. The
+agency-resolver case can't be pre-empted the same way today — the resolving
+agency user's id isn't in the `Issue` payload (§4's object shape), only
+`hazard` and the transition history — so an agency account that resolved a
+`RESTRICTED` issue itself will hit this 403 on click rather than have the
+button hidden in advance. Handle it as a normal error toast.
 
 Other failures: **409** `"Cannot move an issue from X to Y"` (the issue moved
 under you — refetch) · **400** a missing `reason` or `duplicateOf`.
@@ -812,15 +818,36 @@ Let `me` be the signed-in user and `i` the issue:
 | Button | Show when |
 |---|---|
 | Edit | `i.reportedBy === me.id && i.status === 'OPEN'` |
-| Add photo | `(i.status === 'OPEN' && i.reportedBy === me.id) \|\| (['CLAIMED','IN_PROGRESS'].includes(i.status) && i.volunteer?.id === me.id)`, and fewer than 5 files |
+| Add photo | `(i.status === 'OPEN' && i.reportedBy === me.id && i.hazard !== 'RESTRICTED') \|\| (['CLAIMED','IN_PROGRESS'].includes(i.status) && i.volunteer?.id === me.id) \|\| (me.roles.includes('AGENCY') && i.hazard === 'RESTRICTED' && ['OPEN','IN_PROGRESS'].includes(i.status))`, and fewer than 5 files |
 | Classify | `i.hazard === 'UNCLASSIFIED' && i.reportedBy === me.id` |
 | Answer hazard questions | `i.hazard === 'NEEDS_REVIEW' && i.pendingQuestions?.length && i.reportedBy === me.id` |
 | Claim | `i.status === 'OPEN' && i.hazard === 'UNRESTRICTED' && i.reportedBy !== me.id && me.roles.includes('CITIZEN')` |
 | Release | `i.volunteer?.id === me.id && ['CLAIMED','IN_PROGRESS'].includes(i.status)` |
 | Start work | `i.volunteer?.id === me.id && i.status === 'CLAIMED'` |
-| Submit resolution | `i.volunteer?.id === me.id && ['CLAIMED','IN_PROGRESS'].includes(i.status)` and at least one PROOF photo of theirs |
-| Confirm (VERIFIED) | `me.roles.includes('AGENCY') && ['RESOLVED','AI_APPROVED'].includes(i.status) && i.volunteer?.id !== me.id` |
+| Submit resolution | `(i.volunteer?.id === me.id && ['CLAIMED','IN_PROGRESS'].includes(i.status))` or `(me.roles.includes('AGENCY') && i.hazard === 'RESTRICTED' && i.status === 'OPEN')`, either way gated on at least one PROOF photo of theirs |
+| Confirm (VERIFIED) | `me.roles.includes('AGENCY') && ['RESOLVED','AI_APPROVED'].includes(i.status) && i.volunteer?.id !== me.id` — but see the note below: this predicate cannot also catch an agency confirming its own restricted-issue resolution |
 | Send back / Reject / Duplicate | `me.roles.includes('AGENCY')` and the transition table allows it |
+
+The reporter is refused a claim on their own issue, but so is anyone once
+`hazard` is anything other than `UNRESTRICTED` — a `RESTRICTED` `OPEN` issue is
+the agency's to fix, not the reporter's to keep adding photos to. See §4a and
+the agency-resolution note under §4's claim refusals.
+
+Editing `title`, `description`, `category` or `location` on an issue that has
+already been classified — or attaching a new REPORT photo to one — resets
+`hazard` back to `UNCLASSIFIED` and clears `hazardAssessment`,
+`pendingQuestions` and `answers`: the existing verdict was about the text and
+photos the classifier actually read, and either of those actions changes what
+it saw. The reporter must submit for classification again (§4a, step 2). An
+edit or upload that doesn't change any of those inputs — resubmitting the same
+title, say — leaves the classification alone.
+
+**Confirm** also can't be hidden client-side for the one case above the
+predicate doesn't cover: an agency account that resolved a `RESTRICTED` issue
+itself. The resolving agency's id isn't part of the `Issue` payload, so that
+attempt reaches the button, gets a 403, and needs to be handled as an error
+rather than prevented — see the self-dealing note under §4's `PATCH
+/issues/:id/status`.
 
 Treat this as a UI hint, never as the security boundary — the server re-checks
 everything, and a 403 or 409 is always possible when your copy of the issue is stale.
