@@ -71,6 +71,21 @@ describe('IssuesService', () => {
       const [input] = model.create.mock.calls[0];
       expect(input).not.toHaveProperty('status');
     });
+
+    it('stores the reporter observations', async () => {
+      model.create.mockResolvedValue({});
+
+      await service.create(REPORTER, {
+        title: 'Blocked drain',
+        description: 'Standing water.',
+        category: IssueCategory.DRAINAGE,
+        location: 'Market Street',
+        observations: ['obs-wires'],
+      });
+
+      const [document] = model.create.mock.calls[0];
+      expect(document.observations).toEqual(['obs-wires']);
+    });
   });
 
   describe('findAll', () => {

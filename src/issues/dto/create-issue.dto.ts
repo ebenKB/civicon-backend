@@ -1,5 +1,5 @@
-import { IsEnum, IsNotEmpty, IsString, MaxLength } from 'class-validator';
-import { IssueCategory } from '../../contracts/index.js';
+import { ArrayUnique, IsArray, IsEnum, IsIn, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IssueCategory, observationIds } from '../../contracts/index.js';
 
 /**
  * Four fields, and deliberately no `status` or `reportedBy`. Both are derived
@@ -24,4 +24,15 @@ export class CreateIssueDto {
   @IsNotEmpty()
   @MaxLength(200)
   location: string;
+
+  /**
+   * What the reporter says they could see. Only the checkbox entries of the
+   * question bank: a follow-up id here would mean the client invented a
+   * question nobody asked.
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsIn(observationIds(), { each: true })
+  observations?: string[];
 }
