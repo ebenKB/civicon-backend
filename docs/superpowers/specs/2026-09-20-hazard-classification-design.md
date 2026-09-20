@@ -168,8 +168,15 @@ Two phases:
   `RESTRICTED` with source `REPORTER` and no AI call. Otherwise the classifier
   runs over title, description, category and up to two `REPORT` images.
   Photographs are optional: media is not required to report, so a text-only
-  report is classified on its text, and the prompt is told no photograph exists
-  — which should itself make the model less willing to be confident.
+  report is classified on its text alone. The prompt states whether a photograph
+  exists, as fact, but carries no instruction to be more cautious without one.
+  A clear description ("live cable down across the road") deserves a confident
+  verdict; a vague one will score low on its own merits and take the question
+  route. Penalising the absence of a photo twice would only push ordinary
+  reports into the human queue.
+
+  The question step earns its keep most here: with no photograph, the reporter
+  is the only source of anything the text left out.
   - Confident (≥ 0.7) either way → `UNRESTRICTED` or `RESTRICTED`, done.
   - Unsure → the model selects 3–5 question ids from the bank; they are stored in
     `pendingQuestions` and returned. The issue stays `UNCLASSIFIED`.
