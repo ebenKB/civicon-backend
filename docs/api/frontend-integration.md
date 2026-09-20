@@ -410,11 +410,36 @@ like the other mutation routes.
 available.
 
 **Step 3 — answer the follow-ups, or wait.** Only when step 2 came back with
-`pendingQuestions`. Render each id's question text from the same fixed bank
-(follow-ups, not observations — a different set of ids from the same list; ask
-the backend team for the full table if you need it beyond what's returned).
-Each answer is `'YES' | 'NO' | 'UNSURE'`. Call the **same** classification
-route again, this time with every pending question answered and nothing else:
+`pendingQuestions`. Those are ids from a second, larger set — the follow-ups —
+and you render the text yourself. Each answer is `'YES' | 'NO' | 'UNSURE'`.
+
+```ts
+const FOLLOW_UP_QUESTIONS = [
+  { id: 'elec-1',    text: 'Are any wires hanging down, broken, or lying on the ground?' },
+  { id: 'elec-2',    text: 'Is anything electrical in contact with water?' },
+  { id: 'elec-3',    text: 'Is the pole or its cover damaged, leaning, or open?' },
+  { id: 'elec-4',    text: 'Can you hear buzzing, see sparks, or smell burning?' },
+  { id: 'water-1',   text: 'Is the water deeper than knee height?' },
+  { id: 'water-2',   text: 'Is the water moving fast enough to push against your legs?' },
+  { id: 'water-3',   text: 'Is a drain or manhole cover missing or open?' },
+  { id: 'traffic-1', text: 'Are vehicles still driving past the spot?' },
+  { id: 'traffic-2', text: 'Would someone working on this have to stand in the road?' },
+  { id: 'traffic-3', text: 'Is this on a main road rather than a side street?' },
+  { id: 'struct-1',  text: 'Has any part of a wall, roof, pole or bridge already fallen?' },
+  { id: 'struct-2',  text: 'Is anything leaning, cracked, or looking likely to fall?' },
+  { id: 'struct-3',  text: 'Is there loose material overhead?' },
+  { id: 'gas-1',     text: 'Can you smell gas, petrol or diesel?' },
+  { id: 'gas-2',     text: 'Is there any fire, smoke, or heat coming from it?' },
+  { id: 'height-1',  text: 'Would someone need a ladder, or to climb, to reach it?' },
+  { id: 'height-2',  text: 'Is it above head height?' },
+  { id: 'gen-1',     text: 'Is there broken glass, sharp metal, or medical waste?' },
+  { id: 'gen-2',     text: 'Is anything chemical leaking or spilled?' },
+  { id: 'gen-3',     text: 'Is the area already fenced off, taped off, or being guarded?' },
+];
+```
+
+Call the **same** classification route again, this time with every pending
+question answered and nothing else:
 
 ```json
 POST /issues/507f.../classification
@@ -431,7 +456,16 @@ POST /issues/507f.../classification
 second pass never asks a third round — it decides or falls to `NEEDS_REVIEW`
 for a human). **400** if you don't answer exactly the questions that were
 asked — no more, no fewer. **409** if the issue isn't currently waiting on any
-answers (`pendingQuestions` is empty).
+answers (`pendingQuestions` is empty), which is also what you get if an agency
+ruled on it while the reporter was still typing.
+
+**One more 409 worth handling on either call:** `"This issue was already decided
+while classification was running"`. The classification call can take a minute,
+and an agency working the queue can decide in that window; the human decision
+wins and yours is refused rather than silently overwriting it. The same happens
+if the reporter edits the issue, or adds a photo, while their own classification
+is in flight. In every case: refetch the issue and show its current state. It is
+not an error the user caused.
 
 **If it lands on `NEEDS_REVIEW` with no further questions, there is nothing
 more the reporter can do.** It waits in the agency's queue
@@ -639,8 +673,10 @@ the client doesn't choose:
 | `CLAIMED` / `IN_PROGRESS` | the holding volunteer only | `PROOF` (the "after" photo) |
 | anything else | nobody | **409** |
 
-The hazard row is checked first, so on a restricted issue neither the reporter
-nor a volunteer holding it may attach anything — the work is the agency's, and
+The hazard row is checked first, and refusing there gives **403** `"This issue
+needs specialist handling; only an agency can attach evidence"`. So on a
+restricted issue neither the reporter nor a volunteer holding it may attach
+anything — the work is the agency's, and
 so is the evidence. That holds even for an issue a volunteer claimed before it
 was reclassified.
 
@@ -707,7 +743,8 @@ already embed the media.
 **204**, no body. **You may only delete a file you uploaded yourself.** Issue
 ownership is not enough — since an agency can attach proof to a restricted issue
 that is still `OPEN`, a reporter deleting "their" issue's media could otherwise
-delete the agency's evidence. **403** otherwise.
+delete the agency's evidence. Anything else is **403** `"You can only remove
+media you attached yourself"`.
 
 ---
 
@@ -916,9 +953,13 @@ Design around these absences; don't wait for them.
 - **Notifications** — nothing pushes. A volunteer learns their proof was rejected
   by reloading. If your screens need to feel live, poll the issue.
 - **Search** — filter by the fields in §4 only; no free-text search.
-- **An endpoint for the hazard question bank** — the observation and follow-up
-  question ids/text are a fixed server contract, but nothing serves them at
-  runtime; hardcode them (§4a) as you would the enums in §3.
+- **An endpoint for the hazard question bank** — the ids are a stable server
+  contract, but nothing serves the text at runtime, so §4a lists all 26 and you
+  hardcode them. Be aware this is a real drift risk rather than a tidy one: the
+  wording is still awaiting review by someone with field-safety knowledge, so it
+  *will* change, and a copy in the client won't know. Ask the backend team for a
+  `GET /hazard/questions` endpoint before you ship — it is a small change on
+  our side and removes the duplication entirely.
 - **Sponsors** — the role exists and does nothing. No funding, no bounties.
 - **Spending points** — earn only; no rewards or leaderboard.
 - **Reputation** — sits at 100 for everyone. Don't build UI on it.
