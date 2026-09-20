@@ -17,7 +17,12 @@ const DEFAULT_LIMIT = 20;
 /** The fields a hazard verdict is actually about. Anything else — an edit
  * touching only, say, `observations` if that were ever re-added — would not
  * make an existing classification stale. */
-const CLASSIFIER_INPUT_FIELDS = ['title', 'description', 'category', 'location'] as const;
+const CLASSIFIER_INPUT_FIELDS = [
+  'title',
+  'description',
+  'category',
+  'location',
+] as const;
 
 /**
  * Persistence and queries for issues. This service never changes `status` —
@@ -105,15 +110,22 @@ export class IssuesService {
 
     // Exception to the rule that only IssueHazardService (and the hazard
     // route) write `hazard` — see the schema comment on that field. A
-    // classification describes the title/description/category/location the
-    // classifier actually read; once the reporter edits any of them, that
-    // verdict is about an issue that no longer exists, and leaving it in
-    // place would let "streetlight cover loose" clear as UNRESTRICTED and
-    // then be silently rewritten to describe a live, sparking cable. This
-    // only ever moves `hazard` back to UNCLASSIFIED — it never assigns a
-    // level — so the actual classification decision stays owned by
-    // IssueHazardService; the reporter must submit for classification again.
-    if (inputsChanged && issue.hazard !== HazardLevel.UNCLASSIFIED) {
+    // verdict describes the title/description/category/location the
+    // classifier actually read; once the reporter edits any of them it is
+    // about an issue that no longer exists, and leaving it in place would
+    // let "streetlight cover loose" clear as UNRESTRICTED and then be
+    // rewritten to describe a live, sparking cable. This only ever moves
+    // `hazard` back to UNCLASSIFIED, so the decision itself stays owned by
+    // IssueHazardService and the reporter must submit again.
+    //
+    // Only ever from the claimable state. An edit must be able to take an
+    // issue OUT of clearance, but never out of a restriction: a reporter who
+    // could wipe an agency's RESTRICTED ruling by changing one word would
+    // then resubmit and take their chances with the model. NEEDS_REVIEW is
+    // left alone too — it is sitting in an agency queue, and resetting it
+    // would quietly drop it out of that queue; whoever picks it up reads the
+    // text as it stands then.
+    if (inputsChanged && issue.hazard === HazardLevel.UNRESTRICTED) {
       issue.hazard = HazardLevel.UNCLASSIFIED;
       issue.hazardAssessment = undefined;
       issue.pendingQuestions = undefined;
@@ -121,6 +133,42 @@ export class IssuesService {
     }
 
     return issue.save();
+  }
+
+  /**
+   * New report evidence landed, so any clearance the classifier gave is about
+   * an issue that no longer exists. One atomic write, filtered on the
+   * claimable state, for the same reason `updateIfMatches` exists: the caller
+   * read this document before a long GridFS transfer, and a human decision
+   * can land in between. Filtering on UNRESTRICTED means a concurrent
+   * RESTRICTED simply stands — the reset can only ever remove a clearance,
+   * never overwrite a restriction.
+   *
+   * `updatedAt` is bumped either way, including when there was nothing to
+   * clear: IssueHazardService.submit() guards on it, so a photo added while
+   * classify() is still awaiting the model has to move it for that guard to
+   * catch the race.
+   */
+  async registerNewReportEvidence(id: string): Promise<void> {
+    const _id = new Types.ObjectId(id);
+    const now = new Date();
+
+    const cleared = await this.issueModel
+      .updateOne(
+        { _id, hazard: HazardLevel.UNRESTRICTED },
+        {
+          $set: { hazard: HazardLevel.UNCLASSIFIED, updatedAt: now },
+          $unset: { hazardAssessment: '', pendingQuestions: '', answers: '' },
+        },
+        { timestamps: false },
+      )
+      .exec();
+
+    if (cleared.modifiedCount === 0) {
+      await this.issueModel
+        .updateOne({ _id }, { $set: { updatedAt: now } }, { timestamps: false })
+        .exec();
+    }
   }
 
   /**
@@ -139,11 +187,9 @@ export class IssuesService {
     update: UpdateQuery<IssueDocument>,
   ): Promise<IssueDocument | null> {
     return this.issueModel
-      .findOneAndUpdate(
-        { _id: new Types.ObjectId(id), ...expected },
-        update,
-        { returnDocument: 'after' },
-      )
+      .findOneAndUpdate({ _id: new Types.ObjectId(id), ...expected }, update, {
+        returnDocument: 'after',
+      })
       .exec();
   }
 }

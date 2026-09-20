@@ -10,7 +10,12 @@ import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { HazardLevel, IssueStatus, MediaPurpose, Role } from '../contracts/index.js';
+import {
+  HazardLevel,
+  IssueStatus,
+  MediaPurpose,
+  Role,
+} from '../contracts/index.js';
 import { IssueMediaService } from './issue-media.service.js';
 import { IssuesService } from './issues.service.js';
 import { extractFrames } from './video-frames.js';
@@ -62,7 +67,7 @@ describe('IssueMediaService', () => {
   });
 
   beforeEach(async () => {
-    issuesService = { findOne: vi.fn() };
+    issuesService = { findOne: vi.fn(), registerNewReportEvidence: vi.fn() };
     bucket = { find: vi.fn(), delete: vi.fn(), openUploadStream: vi.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -429,10 +434,11 @@ describe('IssueMediaService', () => {
                   issueId: new Types.ObjectId(ISSUE_ID),
                   uploadedBy: new Types.ObjectId(REPORTER),
                   contentType: 'image/png',
-                  purpose: (issue as { status?: IssueStatus }).status ===
-                  IssueStatus.OPEN
-                    ? MediaPurpose.REPORT
-                    : MediaPurpose.PROOF,
+                  purpose:
+                    (issue as { status?: IssueStatus }).status ===
+                    IssueStatus.OPEN
+                      ? MediaPurpose.REPORT
+                      : MediaPurpose.PROOF,
                 },
               }),
             ])
@@ -464,11 +470,13 @@ describe('IssueMediaService', () => {
 
       await successfulUpload(issue);
 
-      expect(issue.hazard).toBe(HazardLevel.UNCLASSIFIED);
-      expect(issue.hazardAssessment).toBeUndefined();
-      expect(issue.pendingQuestions).toBeUndefined();
-      expect(issue.answers).toBeUndefined();
-      expect(issue.save).toHaveBeenCalled();
+      // Delegated to an atomic conditional write rather than saving the copy
+      // read before the GridFS transfer — see the filter test in
+      // issues.service.spec.ts for what it actually clears.
+      expect(issuesService.registerNewReportEvidence).toHaveBeenCalledWith(
+        ISSUE_ID,
+      );
+      expect(issue.save).not.toHaveBeenCalled();
     });
 
     // A fresh, still-UNCLASSIFIED issue has nothing to reset, but the photo
@@ -491,9 +499,11 @@ describe('IssueMediaService', () => {
 
       await successfulUpload(issue);
 
-      expect(issue.hazard).toBe(HazardLevel.UNCLASSIFIED);
-      expect(issue.save).toHaveBeenCalled();
-      expect(issue.updatedAt.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
+      // Registered even with nothing to clear: the method bumps updatedAt
+      // either way, which is what submit()'s guard watches.
+      expect(issuesService.registerNewReportEvidence).toHaveBeenCalledWith(
+        ISSUE_ID,
+      );
     });
 
     // A PROOF upload is evidence of a fix, not new report content — it must
@@ -504,7 +514,11 @@ describe('IssueMediaService', () => {
         status: IssueStatus.OPEN,
         reportedBy: new Types.ObjectId(REPORTER),
         hazard: HazardLevel.RESTRICTED,
-        hazardAssessment: { level: HazardLevel.RESTRICTED, source: 'AI', assessedAt: new Date() },
+        hazardAssessment: {
+          level: HazardLevel.RESTRICTED,
+          source: 'AI',
+          assessedAt: new Date(),
+        },
         save: vi.fn(),
       };
       issuesService.findOne.mockResolvedValue(issue);
@@ -664,7 +678,9 @@ describe('IssueMediaService', () => {
 
   describe('readReportImages', () => {
     it('returns the reporter photographs and nothing else', async () => {
-      bucket.openDownloadStream = vi.fn(() => Readable.from([Buffer.from('bytes')]));
+      bucket.openDownloadStream = vi.fn(() =>
+        Readable.from([Buffer.from('bytes')]),
+      );
       bucket.find.mockReturnValue(
         cursorOf([
           fileDoc({
@@ -690,6 +706,111 @@ describe('IssueMediaService', () => {
 
       expect(images).toHaveLength(1);
       expect(images[0].contentType).toBe('image/png');
+    });
+  });
+
+  describe('restricted issues in other states', () => {
+    const restricted = (status: IssueStatus, extra = {}) => ({
+      _id: new Types.ObjectId(ISSUE_ID),
+      reportedBy: new Types.ObjectId(REPORTER),
+      status,
+      hazard: HazardLevel.RESTRICTED,
+      ...extra,
+    });
+
+    // An issue claimed before it was reclassified still needs resolving, and
+    // only the agency may do that work — so only the agency may evidence it.
+    // Without CLAIMED in the gate the agency falls to the volunteer-only
+    // branch and can never attach proof, while resolve() lets it through and
+    // then refuses for having none.
+    it('lets an agency attach proof to a CLAIMED restricted issue', async () => {
+      issuesService.findOne.mockResolvedValue(
+        restricted(IssueStatus.CLAIMED, {
+          volunteerId: new Types.ObjectId(STRANGER),
+        }),
+      );
+      const stream = new EventEmitter() as EventEmitter & {
+        id: Types.ObjectId;
+        end: (buf: Buffer) => void;
+      };
+      stream.id = new Types.ObjectId();
+      stream.end = () => stream.emit('finish');
+      bucket.openUploadStream.mockReturnValue(stream);
+
+      // First find() is the existing-count check, the second the post-upload
+      // lookup keyed by the new file's _id.
+      bucket.find.mockImplementation((filter: Record<string, unknown>) =>
+        filter._id
+          ? cursorOf([
+              fileDoc({
+                _id: stream.id,
+                metadata: {
+                  issueId: new Types.ObjectId(ISSUE_ID),
+                  uploadedBy: new Types.ObjectId(AGENCY_USER),
+                  contentType: 'image/png',
+                  purpose: MediaPurpose.PROOF,
+                },
+              }),
+            ])
+          : cursorOf([]),
+      );
+
+      await service.upload(ISSUE_ID, AGENCY_USER, anImage(), [Role.AGENCY]);
+
+      const [, options] = bucket.openUploadStream.mock.calls[0];
+      expect(options.metadata.purpose).toBe(MediaPurpose.PROOF);
+    });
+
+    // The mirror: resolve() refuses this volunteer, so letting them keep
+    // adding proof to work they are no longer allowed to do is misleading.
+    it('refuses the stale volunteer on a CLAIMED restricted issue', async () => {
+      issuesService.findOne.mockResolvedValue(
+        restricted(IssueStatus.CLAIMED, {
+          volunteerId: new Types.ObjectId(STRANGER),
+        }),
+      );
+
+      await expect(
+        service.upload(ISSUE_ID, STRANGER, anImage(), [Role.CITIZEN]),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    // PROOF files can now exist on an OPEN issue, which they never could
+    // before restricted issues were resolved by agencies. Issue-level
+    // ownership is no longer enough to decide who may delete what.
+    it('refuses the reporter deleting an agency proof photo', async () => {
+      const proof = fileDoc({
+        metadata: {
+          issueId: new Types.ObjectId(ISSUE_ID),
+          uploadedBy: new Types.ObjectId(AGENCY_USER),
+          contentType: 'image/png',
+          purpose: MediaPurpose.PROOF,
+        },
+      });
+      bucket.find.mockReturnValue(cursorOf([proof]));
+      issuesService.findOne.mockResolvedValue(restricted(IssueStatus.OPEN));
+
+      await expect(
+        service.remove(proof._id.toString(), REPORTER, [Role.CITIZEN]),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(bucket.delete).not.toHaveBeenCalled();
+    });
+
+    it('still lets the reporter delete their own report photo', async () => {
+      const own = fileDoc({
+        metadata: {
+          issueId: new Types.ObjectId(ISSUE_ID),
+          uploadedBy: new Types.ObjectId(REPORTER),
+          contentType: 'image/png',
+          purpose: MediaPurpose.REPORT,
+        },
+      });
+      bucket.find.mockReturnValue(cursorOf([own]));
+      issuesService.findOne.mockResolvedValue(restricted(IssueStatus.OPEN));
+
+      await service.remove(own._id.toString(), REPORTER, [Role.CITIZEN]);
+
+      expect(bucket.delete).toHaveBeenCalledWith(own._id);
     });
   });
 });

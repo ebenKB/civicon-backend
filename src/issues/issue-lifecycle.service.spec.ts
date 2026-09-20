@@ -5,7 +5,12 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { AiOutcome, IssueStatus, HazardLevel, Role } from '../contracts/index.js';
+import {
+  AiOutcome,
+  IssueStatus,
+  HazardLevel,
+  Role,
+} from '../contracts/index.js';
 import { CivicPointsService } from '../points/civic-points.service.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaService } from './issue-media.service.js';
@@ -263,7 +268,9 @@ describe('IssueLifecycleService', () => {
           openIssue({ status: IssueStatus.OPEN, hazard }),
         );
 
-        await expect(service.claim(ISSUE_ID, VOLUNTEER)).rejects.toThrow(fragment);
+        await expect(service.claim(ISSUE_ID, VOLUNTEER)).rejects.toThrow(
+          fragment,
+        );
       });
 
       it('allows a claim on an unrestricted issue', async () => {
@@ -383,9 +390,7 @@ describe('IssueLifecycleService', () => {
       mediaService.countProofBy.mockResolvedValue(0);
 
       await expect(
-        service.resolve(ISSUE_ID, VOLUNTEER, { note: 'Done' }, [
-          Role.CITIZEN,
-        ]),
+        service.resolve(ISSUE_ID, VOLUNTEER, { note: 'Done' }, [Role.CITIZEN]),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
@@ -406,12 +411,9 @@ describe('IssueLifecycleService', () => {
       issuesService.findOne.mockResolvedValue(inProgress());
 
       await expect(
-        service.resolve(
-          ISSUE_ID,
-          '507f1f77bcf86cd799439055',
-          { note: 'x' },
-          [Role.CITIZEN],
-        ),
+        service.resolve(ISSUE_ID, '507f1f77bcf86cd799439055', { note: 'x' }, [
+          Role.CITIZEN,
+        ]),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
@@ -457,9 +459,7 @@ describe('IssueLifecycleService', () => {
       mediaService.countProofBy.mockResolvedValue(0);
 
       await expect(
-        service.resolve(ISSUE_ID, AGENCY_USER, { note: 'Done' }, [
-          Role.AGENCY,
-        ]),
+        service.resolve(ISSUE_ID, AGENCY_USER, { note: 'Done' }, [Role.AGENCY]),
       ).rejects.toThrow('proof of work');
     });
 
@@ -469,9 +469,7 @@ describe('IssueLifecycleService', () => {
       );
 
       await expect(
-        service.resolve(ISSUE_ID, VOLUNTEER, { note: 'Done' }, [
-          Role.CITIZEN,
-        ]),
+        service.resolve(ISSUE_ID, VOLUNTEER, { note: 'Done' }, [Role.CITIZEN]),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -964,9 +962,7 @@ describe('IssueLifecycleService', () => {
         assessedAt: new Date(),
       });
 
-      await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'x' }, [
-        Role.CITIZEN,
-      ]);
+      await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'x' }, [Role.CITIZEN]);
 
       expect(pointsService.awardForVerification).not.toHaveBeenCalled();
     });

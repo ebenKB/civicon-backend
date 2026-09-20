@@ -200,7 +200,11 @@ export class IssuesController {
     @Body() submitClassificationDto: SubmitClassificationDto,
   ) {
     return this.present(
-      await this.issueHazardService.submit(id, user.id, submitClassificationDto),
+      await this.issueHazardService.submit(
+        id,
+        user.id,
+        submitClassificationDto,
+      ),
     );
   }
 
@@ -212,7 +216,12 @@ export class IssuesController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.present(
-      await this.issueHazardService.setLevel(id, user.id, user.roles, setHazardDto),
+      await this.issueHazardService.setLevel(
+        id,
+        user.id,
+        user.roles,
+        setHazardDto,
+      ),
     );
   }
 }

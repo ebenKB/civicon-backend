@@ -264,7 +264,10 @@ async function seed() {
       } else if (issue.status !== IssueStatus.OPEN) {
         report(`"${sample.title}" is ${issue.status}; no photo attached`);
       } else {
-        const image = await loadSeedImage(SEED_IMAGES, `${sample.image}-before`);
+        const image = await loadSeedImage(
+          SEED_IMAGES,
+          `${sample.image}-before`,
+        );
         const file = image
           ? {
               originalname: image.filename,
@@ -280,9 +283,12 @@ async function seed() {
             };
 
         try {
-          await mediaService.upload(issueId, issue.reportedBy.toString(), file, [
-            Role.CITIZEN,
-          ]);
+          await mediaService.upload(
+            issueId,
+            issue.reportedBy.toString(),
+            file,
+            [Role.CITIZEN],
+          );
           report(
             image
               ? `attached ${image.filename} to "${sample.title}"`

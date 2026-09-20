@@ -77,7 +77,7 @@ export class IssueMediaService implements OnModuleInit {
     file: UploadedFile,
     roles: Role[],
   ): Promise<PublicMedia> {
-    const { purpose, issue } = await this.assertMayAttach(issueId, actorId, roles);
+    const { purpose } = await this.assertMayAttach(issueId, actorId, roles);
 
     const rejection = checkUpload(file.mimetype, file.size);
     if (rejection?.reason === 'type') {
@@ -124,22 +124,11 @@ export class IssueMediaService implements OnModuleInit {
     // actually succeeds, so a rejected or oversize file never resets a
     // classification for nothing. A PROOF upload never reaches here.
     if (purpose === MediaPurpose.REPORT) {
-      if (issue.hazard !== HazardLevel.UNCLASSIFIED) {
-        issue.hazard = HazardLevel.UNCLASSIFIED;
-        issue.hazardAssessment = undefined;
-        issue.pendingQuestions = undefined;
-        issue.answers = undefined;
-      }
-      // Touch the issue even when there is nothing to reset — a fresh,
-      // still-UNCLASSIFIED issue mid-classification. IssueHazardService
-      // .submit()'s guarded write asserts `updatedAt` hasn't moved since it
-      // started reading, specifically so a REPORT photo added while
-      // classify() is awaiting the model gets caught even though `hazard`
-      // itself hasn't changed yet. Without this, the race would go
-      // undetected for exactly the reports that need it most: ones still
-      // being classified for the first time.
-      issue.updatedAt = new Date();
-      await issue.save();
+      // One atomic conditional write rather than saving the document read
+      // before the GridFS transfer: a PATCH /hazard landing mid-upload would
+      // otherwise be clobbered back to UNCLASSIFIED by a stale in-memory
+      // copy — the very race the reset exists to close.
+      await this.issuesService.registerNewReportEvidence(issueId);
     }
 
     return toPublicMedia(stored);
@@ -240,24 +229,33 @@ export class IssueMediaService implements OnModuleInit {
   ): Promise<{ purpose: MediaPurpose; issue: IssueDocument }> {
     const issue = await this.issuesService.findOne(issueId);
 
+    // You may only remove what you attached. Checked once, ahead of every
+    // branch, because issue-level ownership stopped being enough the moment
+    // an agency could attach PROOF to an OPEN issue: without this the
+    // reporter of a restricted issue could delete the agency's evidence, and
+    // a holder could delete the reporter's original photograph.
+    if (
+      action === 'remove' &&
+      file?.metadata?.uploadedBy?.toString() !== actorId
+    ) {
+      throw new ForbiddenException(
+        'You can only remove media you attached yourself',
+      );
+    }
+
     // A restricted issue is the agency's to fix, so it is also theirs to add
     // new evidence to — not even the citizen who reported it may attach more.
-    // Checked ahead of the OPEN/CLAIMED branches below, which would otherwise
-    // let the reporter through on report-time status alone.
+    // CLAIMED is in the list because an issue claimed before it was
+    // reclassified still needs resolving, and only the agency may do that
+    // work: leaving it out stranded the issue, with the agency refused here
+    // and resolve() then refusing it for having no proof.
     if (
       issue.hazard === HazardLevel.RESTRICTED &&
       (issue.status === IssueStatus.OPEN ||
+        issue.status === IssueStatus.CLAIMED ||
         issue.status === IssueStatus.IN_PROGRESS)
     ) {
       if (roles.includes(Role.AGENCY)) {
-        if (
-          action === 'remove' &&
-          file?.metadata?.uploadedBy?.toString() !== actorId
-        ) {
-          throw new ForbiddenException(
-            'An agency may only remove media it attached itself',
-          );
-        }
         return { purpose: MediaPurpose.PROOF, issue };
       }
       if (action === 'attach') {

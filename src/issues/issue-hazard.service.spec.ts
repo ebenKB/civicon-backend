@@ -88,7 +88,12 @@ describe('IssueHazardService', () => {
 
   it('clears an issue the model is confident is ordinary work', async () => {
     parse.mockResolvedValue({
-      parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Routine.', questionIds: [] },
+      parsed_output: {
+        dangerous: false,
+        confidence: 0.9,
+        reasoning: 'Routine.',
+        questionIds: [],
+      },
       model: 'claude-opus-5',
     });
     const service = await serviceWith(enabled);
@@ -102,7 +107,12 @@ describe('IssueHazardService', () => {
 
   it('restricts an issue the model is confident is dangerous', async () => {
     parse.mockResolvedValue({
-      parsed_output: { dangerous: true, confidence: 0.95, reasoning: 'Live cable.', questionIds: [] },
+      parsed_output: {
+        dangerous: true,
+        confidence: 0.95,
+        reasoning: 'Live cable.',
+        questionIds: [],
+      },
       model: 'claude-opus-5',
     });
     const service = await serviceWith(enabled);
@@ -214,7 +224,10 @@ describe('IssueHazardService', () => {
         IssueHazardService,
         { provide: IssueMediaService, useValue: mediaService },
         { provide: IssuesService, useValue: { findOne: vi.fn() } },
-        { provide: ConfigService, useValue: { get: (k: string) => enabled[k as keyof typeof enabled] } },
+        {
+          provide: ConfigService,
+          useValue: { get: (k: string) => enabled[k as keyof typeof enabled] },
+        },
       ],
     }).compile();
     const service = module.get(IssueHazardService);
@@ -245,7 +258,12 @@ describe('IssueHazardService', () => {
 
   it('sends the answers back to the model on a second pass', async () => {
     parse.mockResolvedValue({
-      parsed_output: { dangerous: false, confidence: 0.85, reasoning: 'Cleared.', questionIds: [] },
+      parsed_output: {
+        dangerous: false,
+        confidence: 0.85,
+        reasoning: 'Cleared.',
+        questionIds: [],
+      },
       model: 'claude-opus-5',
     });
     const service = await serviceWith(enabled);
@@ -265,7 +283,12 @@ describe('IssueHazardService', () => {
     // proof the hazard gate reads its own env key, not the borrowed default.
     it('uses HAZARD_CONFIDENCE_THRESHOLD from the environment when set', async () => {
       parse.mockResolvedValue({
-        parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Routine.', questionIds: [] },
+        parsed_output: {
+          dangerous: false,
+          confidence: 0.9,
+          reasoning: 'Routine.',
+          questionIds: [],
+        },
         model: 'claude-opus-5',
       });
       const service = await serviceWith({
@@ -349,7 +372,12 @@ describe('IssueHazardService', () => {
   // that exercises the path where photographs actually reach the request.
   it('sends the report photographs to the model, capped at HAZARD_MAX_IMAGES', async () => {
     parse.mockResolvedValue({
-      parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Routine.', questionIds: [] },
+      parsed_output: {
+        dangerous: false,
+        confidence: 0.9,
+        reasoning: 'Routine.',
+        questionIds: [],
+      },
       model: 'claude-opus-5',
     });
     mediaService = {
@@ -360,7 +388,10 @@ describe('IssueHazardService', () => {
         IssueHazardService,
         { provide: IssueMediaService, useValue: mediaService },
         { provide: IssuesService, useValue: { findOne: vi.fn() } },
-        { provide: ConfigService, useValue: { get: (k: string) => enabled[k as keyof typeof enabled] } },
+        {
+          provide: ConfigService,
+          useValue: { get: (k: string) => enabled[k as keyof typeof enabled] },
+        },
       ],
     }).compile();
     const service = module.get(IssueHazardService);
@@ -373,7 +404,9 @@ describe('IssueHazardService', () => {
     );
     const [request] = parse.mock.calls[0];
     const content = request.messages[0].content;
-    expect(content.filter((b: { type: string }) => b.type === 'image')).toHaveLength(2);
+    expect(
+      content.filter((b: { type: string }) => b.type === 'image'),
+    ).toHaveLength(2);
   });
 
   describe('submit', () => {
@@ -423,7 +456,9 @@ describe('IssueHazardService', () => {
     it('queues for review and records the questions when unsure', async () => {
       parse.mockResolvedValue({
         parsed_output: {
-          dangerous: true, confidence: 0.4, reasoning: 'Cannot tell.',
+          dangerous: true,
+          confidence: 0.4,
+          reasoning: 'Cannot tell.',
           questionIds: ['elec-1', 'elec-2', 'water-1'],
         },
         model: 'claude-opus-5',
@@ -433,7 +468,9 @@ describe('IssueHazardService', () => {
       const service = await serviceWith(enabled);
 
       const result = await service.submit(
-        document._id.toString(), REPORTER.toString(), {},
+        document._id.toString(),
+        REPORTER.toString(),
+        {},
       );
 
       expect(result.hazard).toBe(HazardLevel.NEEDS_REVIEW);
@@ -456,7 +493,12 @@ describe('IssueHazardService', () => {
 
     it('settles the issue when the answers make the model confident', async () => {
       parse.mockResolvedValue({
-        parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Cleared.', questionIds: [] },
+        parsed_output: {
+          dangerous: false,
+          confidence: 0.9,
+          reasoning: 'Cleared.',
+          questionIds: [],
+        },
         model: 'claude-opus-5',
       });
       const document = saved();
@@ -466,7 +508,8 @@ describe('IssueHazardService', () => {
       const service = await serviceWith(enabled);
 
       const result = await service.submit(
-        document._id.toString(), REPORTER.toString(),
+        document._id.toString(),
+        REPORTER.toString(),
         { answers: [{ questionId: 'elec-1', answer: HazardAnswer.NO }] },
       );
 
@@ -495,7 +538,12 @@ describe('IssueHazardService', () => {
       // the save below must not be the one that gets the last word.
       it('guards the first-call save on the issue still being UNCLASSIFIED', async () => {
         parse.mockResolvedValue({
-          parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Routine.', questionIds: [] },
+          parsed_output: {
+            dangerous: false,
+            confidence: 0.9,
+            reasoning: 'Routine.',
+            questionIds: [],
+          },
           model: 'claude-opus-5',
         });
         const document = saved();
@@ -513,7 +561,12 @@ describe('IssueHazardService', () => {
 
       it('guards the answers-call save on pendingQuestions still matching what was asked', async () => {
         parse.mockResolvedValue({
-          parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Cleared.', questionIds: [] },
+          parsed_output: {
+            dangerous: false,
+            confidence: 0.9,
+            reasoning: 'Cleared.',
+            questionIds: [],
+          },
           model: 'claude-opus-5',
         });
         const document = saved();
@@ -538,7 +591,12 @@ describe('IssueHazardService', () => {
       // overwrite it.
       it('leaves a human decision standing when a late confident verdict loses the race', async () => {
         parse.mockResolvedValue({
-          parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Routine.', questionIds: [] },
+          parsed_output: {
+            dangerous: false,
+            confidence: 0.9,
+            reasoning: 'Routine.',
+            questionIds: [],
+          },
           model: 'claude-opus-5',
         });
         const document = saved();
@@ -556,7 +614,12 @@ describe('IssueHazardService', () => {
 
       it('leaves a human decision standing when a late answers-call loses the race', async () => {
         parse.mockResolvedValue({
-          parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Cleared.', questionIds: [] },
+          parsed_output: {
+            dangerous: false,
+            confidence: 0.9,
+            reasoning: 'Cleared.',
+            questionIds: [],
+          },
           model: 'claude-opus-5',
         });
         const document = saved();
@@ -584,7 +647,12 @@ describe('IssueHazardService', () => {
       // what catches the interleaving.
       it('conflicts, rather than writing UNRESTRICTED, when the reporter edits a classifier input mid-flight', async () => {
         parse.mockResolvedValue({
-          parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Routine.', questionIds: [] },
+          parsed_output: {
+            dangerous: false,
+            confidence: 0.9,
+            reasoning: 'Routine.',
+            questionIds: [],
+          },
           model: 'claude-opus-5',
         });
         const document = saved();
@@ -632,7 +700,9 @@ describe('IssueHazardService', () => {
     const saved = () => {
       const document = issue({
         hazard: HazardLevel.UNCLASSIFIED,
-        save: vi.fn().mockImplementation(function (this: unknown) { return this; }),
+        save: vi.fn().mockImplementation(function (this: unknown) {
+          return this;
+        }),
       });
       return document;
     };
@@ -645,14 +715,18 @@ describe('IssueHazardService', () => {
       const service = await serviceWith(enabled);
 
       const result = await service.setLevel(
-        document._id.toString(), AGENCY_ID, [Role.AGENCY],
+        document._id.toString(),
+        AGENCY_ID,
+        [Role.AGENCY],
         { level: HazardLevel.RESTRICTED, reason: 'Live cable, utility only' },
       );
 
       expect(result.hazard).toBe(HazardLevel.RESTRICTED);
       expect(result.hazardAssessment?.source).toBe(HazardSource.AGENCY);
       expect(result.hazardAssessment?.decidedBy).toBe(AGENCY_ID);
-      expect(result.hazardAssessment?.reasoning).toBe('Live cable, utility only');
+      expect(result.hazardAssessment?.reasoning).toBe(
+        'Live cable, utility only',
+      );
     });
 
     it('marks an admin decision as an admin decision', async () => {
@@ -661,7 +735,9 @@ describe('IssueHazardService', () => {
       const service = await serviceWith(enabled);
 
       const result = await service.setLevel(
-        document._id.toString(), ADMIN_ID, [Role.ADMIN],
+        document._id.toString(),
+        ADMIN_ID,
+        [Role.ADMIN],
         { level: HazardLevel.UNRESTRICTED, reason: 'Ordinary streetlight' },
       );
 
@@ -676,7 +752,9 @@ describe('IssueHazardService', () => {
       const service = await serviceWith(enabled);
 
       const result = await service.setLevel(
-        document._id.toString(), AGENCY_ID, [Role.AGENCY],
+        document._id.toString(),
+        AGENCY_ID,
+        [Role.AGENCY],
         { level: HazardLevel.UNRESTRICTED, reason: 'Checked on site' },
       );
 

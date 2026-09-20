@@ -6,7 +6,12 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { AiOutcome, IssueStatus, HazardLevel, Role } from '../contracts/index.js';
+import {
+  AiOutcome,
+  IssueStatus,
+  HazardLevel,
+  Role,
+} from '../contracts/index.js';
 import { CivicPointsService } from '../points/civic-points.service.js';
 import { ChangeStatusDto } from './dto/change-status.dto.js';
 import { ResolveIssueDto } from './dto/resolve-issue.dto.js';
@@ -58,7 +63,8 @@ const AGENCY_TARGETS: readonly IssueStatus[] = [
 
 const HAZARD_REFUSALS: Record<HazardLevel, string> = {
   [HazardLevel.UNCLASSIFIED]: 'This issue has not been classified yet',
-  [HazardLevel.NEEDS_REVIEW]: 'This issue is waiting for an agency to review it',
+  [HazardLevel.NEEDS_REVIEW]:
+    'This issue is waiting for an agency to review it',
   [HazardLevel.RESTRICTED]:
     'This issue needs specialist handling and cannot be claimed',
   [HazardLevel.UNRESTRICTED]: '',

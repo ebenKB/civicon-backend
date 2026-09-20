@@ -120,6 +120,27 @@ describe('toPublicIssue', () => {
     ).toEqual(assessment);
   });
 
+  // The payload goes out on public, token-free routes. Who ruled on a hazard
+  // is an audit record, not part of the civic record.
+  it('never exposes which staff user decided a hazard', () => {
+    const result = toPublicIssue(
+      issueDoc({
+        hazard: HazardLevel.RESTRICTED,
+        hazardAssessment: {
+          level: HazardLevel.RESTRICTED,
+          source: 'AGENCY',
+          reasoning: 'Utility crew only',
+          decidedBy: '507f1f77bcf86cd799439077',
+          assessedAt: new Date(),
+        },
+      }),
+    );
+
+    expect(result.hazardAssessment?.reasoning).toBe('Utility crew only');
+    expect(result.hazardAssessment?.decidedBy).toBeUndefined();
+    expect(JSON.stringify(result)).not.toContain('507f1f77bcf86cd799439077');
+  });
+
   it('exposes the hazard and what the reporter was asked', () => {
     const result = toPublicIssue(
       issueDoc({

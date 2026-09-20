@@ -195,6 +195,10 @@ describe('IssuesService', () => {
       reportedBy: new Types.ObjectId(REPORTER),
       status: IssueStatus.OPEN,
       title: 'Blocked drain',
+      // The schema defaults this, so a real document always carries it. The
+      // fixture used to omit it, which let "does nothing extra" pass while
+      // the code was in fact writing the field.
+      hazard: HazardLevel.UNCLASSIFIED,
       save: vi.fn().mockImplementation(function (this: unknown) {
         return Promise.resolve(this);
       }),
@@ -269,18 +273,21 @@ describe('IssuesService', () => {
         ['description', { description: 'A live cable is down and sparking.' }],
         ['category', { category: IssueCategory.ELECTRICITY }],
         ['location', { location: 'A different corner' }],
-      ])('resets hazard to UNCLASSIFIED when %s changes', async (_field, patch) => {
-        const issue = classifiedIssue();
-        issue.category = IssueCategory.DRAINAGE;
-        model.findById.mockReturnValue(execOf(issue));
+      ])(
+        'resets hazard to UNCLASSIFIED when %s changes',
+        async (_field, patch) => {
+          const issue = classifiedIssue();
+          issue.category = IssueCategory.DRAINAGE;
+          model.findById.mockReturnValue(execOf(issue));
 
-        const result = await service.updateOwn(REPORTER, REPORTER, patch);
+          const result = await service.updateOwn(REPORTER, REPORTER, patch);
 
-        expect(result.hazard).toBe(HazardLevel.UNCLASSIFIED);
-        expect(result.hazardAssessment).toBeUndefined();
-        expect(result.pendingQuestions).toBeUndefined();
-        expect(result.answers).toBeUndefined();
-      });
+          expect(result.hazard).toBe(HazardLevel.UNCLASSIFIED);
+          expect(result.hazardAssessment).toBeUndefined();
+          expect(result.pendingQuestions).toBeUndefined();
+          expect(result.answers).toBeUndefined();
+        },
+      );
 
       it('does not reset when the edit changes nothing', async () => {
         const issue = classifiedIssue();
@@ -346,5 +353,151 @@ describe('IssuesService', () => {
 
       expect(result).toBeNull();
     });
+  });
+});
+
+describe('IssuesService editing a classified issue', () => {
+  let service: IssuesService;
+  let model: { findById: ReturnType<typeof vi.fn> };
+
+  beforeEach(async () => {
+    model = { findById: vi.fn() };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        IssuesService,
+        { provide: getModelToken(Issue.name), useValue: model },
+      ],
+    }).compile();
+    service = module.get<IssuesService>(IssuesService);
+  });
+
+  // Fixtures build a document whose save() returns itself, matching the
+  // other editing tests in this file.
+  const classified = (hazard, source) =>
+    ({
+      _id: new Types.ObjectId(),
+      title: 'Streetlight cover hanging loose',
+      description: 'The cover swings in the wind.',
+      category: IssueCategory.ELECTRICITY,
+      location: 'Ring Road East',
+      status: IssueStatus.OPEN,
+      reportedBy: new Types.ObjectId(REPORTER),
+      hazard,
+      hazardAssessment: {
+        level: hazard,
+        source,
+        reasoning: 'Utility crew only',
+        decidedBy: source === HazardSource.AGENCY ? 'agency-id' : undefined,
+        assessedAt: new Date(),
+      },
+      save: vi.fn().mockImplementation(function (this: unknown) {
+        return this;
+      }),
+    }) as never;
+
+  // An edit may take an issue OUT of the claimable state. It must never take
+  // one out of a restriction: a reporter who could wipe an agency's
+  // RESTRICTED ruling by changing one word could then resubmit and be cleared.
+  it('never clears a RESTRICTED ruling made by an agency', async () => {
+    const issue = classified(HazardLevel.RESTRICTED, HazardSource.AGENCY);
+    model.findById.mockReturnValue(execOf(issue));
+
+    const result = await service.updateOwn(issue._id.toString(), REPORTER, {
+      description: 'Actually the live cable is down and sparking.',
+    });
+
+    expect(result.hazard).toBe(HazardLevel.RESTRICTED);
+    expect(result.hazardAssessment?.source).toBe(HazardSource.AGENCY);
+  });
+
+  it('never clears a RESTRICTED verdict the model reached either', async () => {
+    const issue = classified(HazardLevel.RESTRICTED, HazardSource.AI);
+    model.findById.mockReturnValue(execOf(issue));
+
+    const result = await service.updateOwn(issue._id.toString(), REPORTER, {
+      description: 'Rewritten.',
+    });
+
+    expect(result.hazard).toBe(HazardLevel.RESTRICTED);
+  });
+
+  // NEEDS_REVIEW sits in an agency queue. Resetting it would silently drop it
+  // out of that queue; the agency reads the current text when it gets there.
+  it('leaves an issue waiting on an agency in that queue', async () => {
+    const issue = classified(HazardLevel.NEEDS_REVIEW, HazardSource.AI);
+    model.findById.mockReturnValue(execOf(issue));
+
+    const result = await service.updateOwn(issue._id.toString(), REPORTER, {
+      description: 'Rewritten.',
+    });
+
+    expect(result.hazard).toBe(HazardLevel.NEEDS_REVIEW);
+  });
+
+  it('still clears a clearance, which is the only claimable state', async () => {
+    const issue = classified(HazardLevel.UNRESTRICTED, HazardSource.AI);
+    model.findById.mockReturnValue(execOf(issue));
+
+    const result = await service.updateOwn(issue._id.toString(), REPORTER, {
+      description: 'Actually the live cable is down and sparking.',
+    });
+
+    expect(result.hazard).toBe(HazardLevel.UNCLASSIFIED);
+    expect(result.hazardAssessment).toBeUndefined();
+  });
+});
+
+describe('IssuesService.registerNewReportEvidence', () => {
+  let service: IssuesService;
+  let model: { updateOne: ReturnType<typeof vi.fn> };
+  const ISSUE_ID = '507f1f77bcf86cd799439022';
+
+  beforeEach(async () => {
+    model = {
+      updateOne: vi.fn().mockReturnValue(execOf({ modifiedCount: 1 })),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        IssuesService,
+        { provide: getModelToken(Issue.name), useValue: model },
+      ],
+    }).compile();
+    service = module.get<IssuesService>(IssuesService);
+  });
+
+  // Filtered on UNRESTRICTED so the write can only ever remove a clearance.
+  // A human RESTRICTED landing during the upload simply stands.
+  it('clears a clearance and everything that justified it', async () => {
+    await service.registerNewReportEvidence(ISSUE_ID);
+
+    const [filter, update] = model.updateOne.mock.calls[0];
+    expect(filter.hazard).toBe(HazardLevel.UNRESTRICTED);
+    expect(update.$set.hazard).toBe(HazardLevel.UNCLASSIFIED);
+    expect(Object.keys(update.$unset)).toEqual([
+      'hazardAssessment',
+      'pendingQuestions',
+      'answers',
+    ]);
+    expect(update.$set.updatedAt).toBeInstanceOf(Date);
+  });
+
+  it('is one conditional write, not a read then a write', async () => {
+    await service.registerNewReportEvidence(ISSUE_ID);
+
+    expect(model.updateOne).toHaveBeenCalledTimes(1);
+  });
+
+  // Nothing to clear still has to move updatedAt: an issue mid-classification
+  // is UNCLASSIFIED throughout, and submit()'s guard watches that field to
+  // catch a photo the classifier never saw.
+  it('still touches updatedAt when there was no clearance to clear', async () => {
+    model.updateOne.mockReturnValue(execOf({ modifiedCount: 0 }));
+
+    await service.registerNewReportEvidence(ISSUE_ID);
+
+    expect(model.updateOne).toHaveBeenCalledTimes(2);
+    const [filter, update] = model.updateOne.mock.calls[1];
+    expect(filter.hazard).toBeUndefined();
+    expect(update.$set.updatedAt).toBeInstanceOf(Date);
   });
 });

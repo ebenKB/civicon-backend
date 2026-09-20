@@ -124,7 +124,11 @@ export class Issue {
   @Prop({
     type: {
       level: { type: String, enum: Object.values(HazardLevel), required: true },
-      source: { type: String, enum: Object.values(HazardSource), required: true },
+      source: {
+        type: String,
+        enum: Object.values(HazardSource),
+        required: true,
+      },
       confidence: { type: Number },
       reasoning: { type: String },
       model: { type: String },
@@ -147,7 +151,11 @@ export class Issue {
     type: [
       {
         questionId: { type: String, required: true },
-        answer: { type: String, enum: Object.values(HazardAnswer), required: true },
+        answer: {
+          type: String,
+          enum: Object.values(HazardAnswer),
+          required: true,
+        },
       },
     ],
     _id: false,

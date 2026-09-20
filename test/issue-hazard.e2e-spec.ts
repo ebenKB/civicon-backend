@@ -256,7 +256,10 @@ describe('Issue hazard classification (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/issues/${issueId}/media`)
       .set(auth(agencyToken))
-      .attach('file', PIXEL, { filename: 'after.png', contentType: 'image/png' })
+      .attach('file', PIXEL, {
+        filename: 'after.png',
+        contentType: 'image/png',
+      })
       .expect(201);
 
     const resolved = await request(app.getHttpServer())

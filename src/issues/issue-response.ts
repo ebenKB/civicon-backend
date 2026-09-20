@@ -80,7 +80,22 @@ export function toPublicIssue(
     verifiedAt: issue.verifiedAt,
     aiAssessment: issue.aiAssessment,
     hazard: issue.hazard,
-    hazardAssessment: issue.hazardAssessment,
+    // Mapped field by field, like everything else here, and `decidedBy` is
+    // left out: it is a staff user's id, and this shape goes out on
+    // token-free public routes. Who ruled is an internal audit record — the
+    // same reasoning that keeps the reporter anonymous above. Spreading the
+    // subdocument instead would not work: a Mongoose subdocument's fields
+    // are not own enumerable properties, so the spread yields nothing.
+    hazardAssessment: issue.hazardAssessment
+      ? {
+          level: issue.hazardAssessment.level,
+          source: issue.hazardAssessment.source,
+          confidence: issue.hazardAssessment.confidence,
+          reasoning: issue.hazardAssessment.reasoning,
+          model: issue.hazardAssessment.model,
+          assessedAt: issue.hazardAssessment.assessedAt,
+        }
+      : undefined,
     observations: issue.observations ?? [],
     pendingQuestions: issue.pendingQuestions,
     answers: issue.answers,

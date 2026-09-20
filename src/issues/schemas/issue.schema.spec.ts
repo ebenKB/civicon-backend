@@ -1,5 +1,9 @@
 import mongoose from 'mongoose';
-import { IssueCategory, IssueStatus, HazardLevel } from '../../contracts/index.js';
+import {
+  IssueCategory,
+  IssueStatus,
+  HazardLevel,
+} from '../../contracts/index.js';
 import { IssueSchema } from './issue.schema.js';
 
 // This spec imports IssueSchema as a VALUE on purpose. A spec that imports only
@@ -41,7 +45,8 @@ describe('IssueSchema', () => {
 });
 
 describe('Issue hazard fields', () => {
-  const Model = mongoose.models.IssueHazardSpec ??
+  const Model =
+    mongoose.models.IssueHazardSpec ??
     mongoose.model('IssueHazardSpec', IssueSchema);
 
   // An issue is unclaimable the moment it exists. Claimable is something it
@@ -74,7 +79,7 @@ describe('Issue hazard fields', () => {
 
   it('indexes hazard exactly once, because it is a queue', () => {
     const hazardIndexCount = IssueSchema.indexes().filter(
-      ([fields]) => 'hazard' in fields
+      ([fields]) => 'hazard' in fields,
     ).length;
     expect(hazardIndexCount).toBe(1);
   });

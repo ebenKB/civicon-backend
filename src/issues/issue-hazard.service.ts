@@ -146,7 +146,10 @@ export class IssueHazardService {
           {
             role: 'user',
             content: [
-              { type: 'text', text: this.reportText(issue, images.length, answers) },
+              {
+                type: 'text',
+                text: this.reportText(issue, images.length, answers),
+              },
               ...this.imageBlocks(images),
             ],
           },
@@ -157,7 +160,9 @@ export class IssueHazardService {
       const verdict = response.parsed_output;
       if (!verdict) {
         return {
-          assessment: this.needsReview('The model returned no parseable judgement.'),
+          assessment: this.needsReview(
+            'The model returned no parseable judgement.',
+          ),
           questionIds: [],
         };
       }
@@ -166,7 +171,9 @@ export class IssueHazardService {
       if (confident) {
         return {
           assessment: {
-            level: verdict.dangerous ? HazardLevel.RESTRICTED : HazardLevel.UNRESTRICTED,
+            level: verdict.dangerous
+              ? HazardLevel.RESTRICTED
+              : HazardLevel.UNRESTRICTED,
             source: HazardSource.AI,
             confidence: verdict.confidence,
             reasoning: verdict.reasoning,
@@ -195,7 +202,9 @@ export class IssueHazardService {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      this.logger.warn(`Hazard classification failed for ${issue._id}: ${message}`);
+      this.logger.warn(
+        `Hazard classification failed for ${issue._id}: ${message}`,
+      );
       return { assessment: this.needsReview(message), questionIds: [] };
     }
   }
@@ -277,7 +286,11 @@ export class IssueHazardService {
       ? { pendingQuestions: pending, updatedAt: readAt }
       : { hazard: HazardLevel.UNCLASSIFIED, updatedAt: readAt };
 
-    const result = await this.issuesService.updateIfMatches(issueId, expected, update);
+    const result = await this.issuesService.updateIfMatches(
+      issueId,
+      expected,
+      update,
+    );
 
     if (!result) {
       throw new ConflictException(
@@ -303,7 +316,9 @@ export class IssueHazardService {
     issue.hazard = dto.level;
     issue.hazardAssessment = {
       level: dto.level,
-      source: roles.includes(Role.ADMIN) ? HazardSource.ADMIN : HazardSource.AGENCY,
+      source: roles.includes(Role.ADMIN)
+        ? HazardSource.ADMIN
+        : HazardSource.AGENCY,
       reasoning: dto.reason,
       decidedBy: actorId,
       assessedAt: new Date(),
