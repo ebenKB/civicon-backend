@@ -77,6 +77,15 @@ describe('AI proof verification (e2e, feature off)', () => {
       })
       .expect(201);
     issueId = body.id;
+
+    // A fresh issue is UNCLASSIFIED, and only UNRESTRICTED is claimable (a
+    // later slice). This suite is about the AI verification pipeline, not
+    // classification, so the agency clears it by hand.
+    await request(app.getHttpServer())
+      .patch(`/issues/${issueId}/hazard`)
+      .set(auth(agencyToken))
+      .send({ level: 'UNRESTRICTED', reason: 'Classified for this suite' })
+      .expect(200);
   });
 
   afterAll(async () => {

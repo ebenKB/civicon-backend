@@ -4618,6 +4618,53 @@
           ]
         },
         {
+          "name": "Sign in as the agency",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"agency@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "Needed to clear the issue found below for claiming — a fresh or reporter-ticked issue is not UNRESTRICTED by default, and only UNRESTRICTED is claimable (see the Hazard folder)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('agency_token', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Find an open issue the reporter owns",
           "request": {
             "method": "GET",
@@ -4709,6 +4756,61 @@
               ],
               "cookie": [],
               "body": "[{\"id\":\"6aaa8a7326d35fc50f012fe7\",\"title\":\"Throwaway issue for guardrail checks\",\"description\":\"The culvert gave way after Sunday rain; children are wading through.\",\"category\":\"DRAINAGE\",\"location\":\"School road, near the chapel\",\"status\":\"OPEN\",\"reportedBy\":\"6aaa8a6c3950bef9772f221f\",\"media\":[],\"createdAt\":\"2026-09-16T12:24:19.512Z\",\"updatedAt\":\"2026-09-16T12:24:19.512Z\"}]"
+            }
+          ]
+        },
+        {
+          "name": "Classify it as ordinary work",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{lifecycle_issue_id}}/hazard",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{lifecycle_issue_id}}",
+                "hazard"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"level\": \"UNRESTRICTED\",\n  \"reason\": \"Classified for this suite\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agency_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "This folder is about claim/resolve mechanics, not classification, so the agency clears it by hand rather than this folder exercising the AI path."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('now unrestricted', () => pm.expect(pm.response.json().hazard).to.eql('UNRESTRICTED'));"
+                ]
+              }
             }
           ]
         },
@@ -5355,6 +5457,406 @@
               ],
               "cookie": [],
               "body": "{\"message\":\"Cannot DELETE /issues//claim\",\"error\":\"Not Found\",\"statusCode\":404}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Hazard",
+      "description": "The three-step classification gate: an observation the reporter ticks, the classification call, and the human decision that clears or restricts an issue. Run `npm run seed -- --fresh` first.\n\nUNRESTRICTED is the only claimable hazard level. This folder reports an issue with an observation ticked, which restricts it with no AI call, proves a volunteer is refused, then has an agency clear it and the same volunteer claim it.",
+      "item": [
+        {
+          "name": "Sign in as the reporter",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"citizen@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "The seeded citizen reports the issue this folder classifies."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('citizen_token', json.token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in as the volunteer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"volunteer@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "A different citizen, who will try to claim it."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('volunteer_token', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in as the agency",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"agency@civicon.test\",\n  \"password\": \"{{demo_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "description": "The seeded agency, who will make the human decision."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('agency_token', pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Report an issue with an observation ticked",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Downed cable across the footpath\",\n  \"description\": \"A wire is lying across the path near the market.\",\n  \"category\": \"ELECTRICITY\",\n  \"location\": \"Market Street footbridge\",\n  \"observations\": [\n    \"obs-wires\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Ticking an observation at report time is what restricts the issue outright once classified — no AI call needed. Creating it does not classify it: `hazard` starts UNCLASSIFIED regardless of what was ticked."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 201', () => pm.response.to.have.status(201));",
+                  "pm.test('starts UNCLASSIFIED', () => pm.expect(json.hazard).to.eql('UNCLASSIFIED'));",
+                  "pm.collectionVariables.set('hazard_issue_id', json.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Classify it",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{hazard_issue_id}}/classification",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{hazard_issue_id}}",
+                "classification"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{citizen_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "The reporter submits the report for classification. The ticked observation decides it deterministically — this call never reaches the AI when one was ticked."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('restricts outright', () => pm.expect(json.hazard).to.eql('RESTRICTED'));",
+                  "pm.test('the reporter is the source, not the AI', () => pm.expect(json.hazardAssessment.source).to.eql('REPORTER'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "A volunteer cannot claim a restricted issue",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues/{{hazard_issue_id}}/claim",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{hazard_issue_id}}",
+                "claim"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{volunteer_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "UNRESTRICTED is the only claimable level. This one needs an agency."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('responds 403', () => pm.response.to.have.status(403));",
+                  "pm.test('names the reason', () => pm.expect(pm.response.text()).to.match(/specialist/i));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "The agency clears it",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/issues/{{hazard_issue_id}}/hazard",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{hazard_issue_id}}",
+                "hazard"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"level\": \"UNRESTRICTED\",\n  \"reason\": \"Checked in person: the cable is disconnected, not live.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{agency_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "The human decision that settles what classification could not. Only an AGENCY or ADMIN may call this, and a reason is mandatory."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('now unrestricted', () => pm.expect(json.hazard).to.eql('UNRESTRICTED'));",
+                  "pm.test('records who decided', () => pm.expect(json.hazardAssessment.source).to.eql('AGENCY'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Now the volunteer can claim it",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/issues/{{hazard_issue_id}}/claim",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "issues",
+                "{{hazard_issue_id}}",
+                "claim"
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{volunteer_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Once UNRESTRICTED, the same claim that was refused above succeeds."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "pm.test('responds 200', () => pm.response.to.have.status(200));",
+                  "pm.test('claimed', () => pm.expect(json.status).to.eql('CLAIMED'));"
+                ]
+              }
             }
           ]
         }

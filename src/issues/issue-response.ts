@@ -1,5 +1,8 @@
 import {
   AiAssessment,
+  HazardAnswer,
+  HazardAssessment,
+  HazardLevel,
   IssueCategory,
   IssueStatus,
 } from '../contracts/index.js';
@@ -35,6 +38,14 @@ export interface PublicIssue {
   resolvedAt?: Date;
   verifiedAt?: Date;
   aiAssessment?: AiAssessment;
+  /** Whether a volunteer may take this on. The only claimable value is UNRESTRICTED. */
+  hazard: HazardLevel;
+  hazardAssessment?: HazardAssessment;
+  /** Question ids the reporter ticked when reporting. */
+  observations: string[];
+  /** Question ids sent to the reporter and not yet answered or superseded. */
+  pendingQuestions?: string[];
+  answers?: { questionId: string; answer: HazardAnswer }[];
   media: PublicMedia[];
   createdAt: Date;
   updatedAt: Date;
@@ -68,6 +79,11 @@ export function toPublicIssue(
     resolvedAt: issue.resolvedAt,
     verifiedAt: issue.verifiedAt,
     aiAssessment: issue.aiAssessment,
+    hazard: issue.hazard,
+    hazardAssessment: issue.hazardAssessment,
+    observations: issue.observations ?? [],
+    pendingQuestions: issue.pendingQuestions,
+    answers: issue.answers,
     media,
     createdAt: issue.createdAt,
     updatedAt: issue.updatedAt,

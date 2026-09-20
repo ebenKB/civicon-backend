@@ -194,6 +194,16 @@ type AiOutcome =
   | 'FAILED';            // the AI call errored or timed out
 
 type PointsReason = 'RESOLUTION_VERIFIED' | 'VERIFICATION_REVERSED';
+
+type HazardLevel =
+  | 'UNCLASSIFIED'  // created, not yet submitted for classification — never claimable
+  | 'UNRESTRICTED'  // ordinary volunteer work — the ONLY claimable value
+  | 'RESTRICTED'    // needs a specialist; only an agency can resolve it
+  | 'NEEDS_REVIEW'; // nobody is confident enough yet — waiting on an agency
+
+type HazardSource = 'REPORTER' | 'AI' | 'AGENCY' | 'ADMIN';
+
+type HazardAnswer = 'YES' | 'NO' | 'UNSURE';
 ```
 
 Category is **required** when reporting. The backend knows people don't always
@@ -230,6 +240,20 @@ Every issue endpoint returns this exact shape. Optional fields are absent (not
   resolvedAt?: string
   verifiedAt?: string
   aiAssessment?: AiAssessment // see §6
+
+  hazard: HazardLevel           // UNRESTRICTED is the only claimable value — see §4a
+  hazardAssessment?: {
+    level: HazardLevel
+    source: HazardSource
+    confidence?: number         // 0–1; absent when a human decided
+    reasoning?: string          // the model's reasoning, or the human's mandatory reason
+    model?: string
+    decidedBy?: string          // the deciding user's id, when a human decided
+    assessedAt: string
+  }
+  observations: string[]        // question ids the reporter ticked when reporting
+  pendingQuestions?: string[]   // question ids sent to the reporter, not yet answered
+  answers?: { questionId: string; answer: HazardAnswer }[]
 
   createdAt: string
   updatedAt: string
@@ -276,6 +300,8 @@ Useful queries for your screens:
 - My claimed work: `?volunteerId=<my id>`
 - Agency inbox: `?status=AI_APPROVED` (AI says fixed, awaiting confirmation)
 - Agency review queue: `?aiOutcome=BELOW_THRESHOLD`, `?aiOutcome=SKIPPED_NO_BEFORE`, `?aiOutcome=FAILED`
+- Hazard queues: `?hazard=NEEDS_REVIEW` (unsure verdicts) and `?hazard=UNCLASSIFIED`
+  (reports never submitted for classification) — see §4a
 
 ### GET /issues/:id — public
 
@@ -302,8 +328,12 @@ valid ObjectId, so validate the shape before you navigate.
 
 Don't send `status` or `reportedBy` — both are derived, and sending them is a 400.
 
-**201** → the new `Issue` (status `OPEN`, `media: []`). Photos are a **second step**
-(§5).
+An optional fifth field, `observations`, lets the reporter tick what they can
+see — see §4a immediately below.
+
+**201** → the new `Issue` (status `OPEN`, `hazard: 'UNCLASSIFIED'`, `media: []`).
+Photos are a **second step** (§5); classification is a **third** (§4a). None of
+this issue is claimable by anyone until it clears classification.
 
 **403** if the account doesn't hold CITIZEN. An agency-only account cannot report.
 
@@ -314,6 +344,129 @@ Same four fields, all optional. Send only what changed.
 **403** you didn't report it (admins get 403 too — rewriting someone's account of
 what they saw isn't an admin power)
 **409** the issue has moved past OPEN and can no longer be edited
+
+### 4a. Hazard classification — the three-step flow
+
+Not every issue is safe for a member of the public to fix. `hazard` gates
+`POST /issues/:id/claim`: **`UNRESTRICTED` is the only claimable value.** A
+freshly reported issue is `UNCLASSIFIED` and cannot be claimed until it goes
+through this flow.
+
+**Step 1 — tick what you can see, when reporting.** `POST /issues` (above)
+takes an optional `observations` array of question ids from the fixed list
+below. Offer these as checkboxes on the report form. Ticking any one of them
+restricts the issue outright once classified — no AI call needed for that
+verdict.
+
+```ts
+const OBSERVATION_QUESTIONS = [
+  { id: 'obs-wires',           text: 'I can see loose, broken or hanging electrical wires' },
+  { id: 'obs-water-electric',  text: 'Water is touching something electrical' },
+  { id: 'obs-collapse',        text: 'Part of a structure has collapsed, or is leaning' },
+  { id: 'obs-gas',             text: 'There is a smell of gas or fuel' },
+  { id: 'obs-deep-water',      text: 'The water is deep or moving fast' },
+  { id: 'obs-traffic',         text: 'It is in a lane where vehicles are still driving' },
+];
+```
+
+There's no endpoint that serves this list — it's a fixed, stable server
+contract (ids are never reused once retired), so hardcode it exactly like the
+enumerations in §3.
+
+**Step 2 — classify.** `POST /issues/:id/classification` — the reporter, no
+body needed the first time.
+
+```
+POST /issues/507f.../classification
+{}
+```
+
+**200** → the updated `Issue`. Read `hazard`:
+
+| `hazard` | What happened | What to show |
+|---|---|---|
+| `UNRESTRICTED` | Cleared — a volunteer can claim it | "Looks like ordinary work" |
+| `RESTRICTED` | An observation was ticked, or the AI was confident it's dangerous | "This needs a specialist — an agency will handle it" |
+| `NEEDS_REVIEW` with `pendingQuestions: []` | The AI couldn't decide and had no good follow-up questions (or there's no `ANTHROPIC_API_KEY` configured at all) | "Waiting for an agency to take a look" |
+| `NEEDS_REVIEW` with `pendingQuestions: [...]` | The AI has 3–5 follow-up questions that would settle it | Show them, go to step 3 |
+
+**This call is synchronous — it can take up to roughly a minute or two in the
+worst case** (photographs, or especially video, add real latency to the model
+call). Show a spinner that tolerates a slow response; don't assume it's fast
+like the other mutation routes.
+
+**409** if the issue was already classified and you call this again with no
+`answers` — check `hazard !== 'UNCLASSIFIED'` before showing this step as
+available.
+
+**Step 3 — answer the follow-ups, or wait.** Only when step 2 came back with
+`pendingQuestions`. Render each id's question text from the same fixed bank
+(follow-ups, not observations — a different set of ids from the same list; ask
+the backend team for the full table if you need it beyond what's returned).
+Each answer is `'YES' | 'NO' | 'UNSURE'`. Call the **same** classification
+route again, this time with every pending question answered and nothing else:
+
+```json
+POST /issues/507f.../classification
+{
+  "answers": [
+    { "questionId": "elec-1", "answer": "YES" },
+    { "questionId": "elec-2", "answer": "NO" },
+    { "questionId": "water-1", "answer": "UNSURE" }
+  ]
+}
+```
+
+**200** → the updated `Issue`, `hazard` now settled one way or the other (a
+second pass never asks a third round — it decides or falls to `NEEDS_REVIEW`
+for a human). **400** if you don't answer exactly the questions that were
+asked — no more, no fewer. **409** if the issue isn't currently waiting on any
+answers (`pendingQuestions` is empty).
+
+**If it lands on `NEEDS_REVIEW` with no further questions, there is nothing
+more the reporter can do.** It waits in the agency's queue
+(`?hazard=NEEDS_REVIEW`) until a human decides.
+
+### PATCH /issues/:id/hazard — AGENCY or ADMIN
+
+The human decision, for anything classification couldn't settle (or to
+override any hazard level by hand).
+
+```json
+{ "level": "UNRESTRICTED", "reason": "Checked in person, no live wires" }
+```
+
+Only `RESTRICTED` and `UNRESTRICTED` are settable here — `NEEDS_REVIEW` and
+`UNCLASSIFIED` are states the system arrives at, never ones a person chooses.
+
+**200** → the updated `Issue`, `hazardAssessment.source` set to `AGENCY` or
+`ADMIN` and `decidedBy` set to the caller's id. **400** no `reason` (capped at
+500 characters, same as `statusReason`). **403** a citizen calling this route
+at all.
+
+### The three claim refusals
+
+`POST /issues/:id/claim` checks `hazard` **before** anything else — before
+"already claimed", before "you reported this yourself" — so the message always
+names the real reason:
+
+| `hazard` | Refusal |
+|---|---|
+| `UNCLASSIFIED` | `"This issue has not been classified yet"` |
+| `NEEDS_REVIEW` | `"This issue is waiting for an agency to review it"` |
+| `RESTRICTED` | `"This issue needs specialist handling and cannot be claimed"` |
+
+All three are **403**. Hide or disable the Claim button unless
+`issue.hazard === 'UNRESTRICTED'` rather than relying on the server response —
+these aren't states a retry gets you out of.
+
+**A `RESTRICTED` issue is never a dead end.** An agency resolves it directly
+through the ordinary `POST /issues/:id/resolution` and
+`PATCH /issues/:id/status` routes below, while holding the `AGENCY` role —
+attaching evidence and writing a note exactly as a volunteer would. The only
+differences: it pays no civic points (there's no volunteer), and the same
+"can't confirm your own work" rule applies to the agency that resolved it, not
+just to a volunteer.
 
 ### The lifecycle
 
@@ -346,7 +499,7 @@ entitled to.
 
 | Route | Who | Effect | Common errors |
 |---|---|---|---|
-| `POST /issues/:id/claim` | any CITIZEN except the reporter | OPEN → CLAIMED | **409** already claimed · **403** you reported it · **409** not OPEN |
+| `POST /issues/:id/claim` | any CITIZEN except the reporter | OPEN → CLAIMED | **409** already claimed · **403** you reported it, or `hazard !== 'UNRESTRICTED'` (§4a) · **409** not OPEN |
 | `DELETE /issues/:id/claim` | the holder | back to OPEN; clears `volunteer`, `claimedAt`, `resolvedAt`, `resolutionNote` | **403** not the holder |
 | `POST /issues/:id/start` | the holder | CLAIMED → IN_PROGRESS | **403** not the holder |
 | `POST /issues/:id/resolution` | the holder | → RESOLVED (or AI_APPROVED) | **400** no proof photo · **403** not the holder |
@@ -660,7 +813,9 @@ Let `me` be the signed-in user and `i` the issue:
 |---|---|
 | Edit | `i.reportedBy === me.id && i.status === 'OPEN'` |
 | Add photo | `(i.status === 'OPEN' && i.reportedBy === me.id) \|\| (['CLAIMED','IN_PROGRESS'].includes(i.status) && i.volunteer?.id === me.id)`, and fewer than 5 files |
-| Claim | `i.status === 'OPEN' && i.reportedBy !== me.id && me.roles.includes('CITIZEN')` |
+| Classify | `i.hazard === 'UNCLASSIFIED' && i.reportedBy === me.id` |
+| Answer hazard questions | `i.hazard === 'NEEDS_REVIEW' && i.pendingQuestions?.length && i.reportedBy === me.id` |
+| Claim | `i.status === 'OPEN' && i.hazard === 'UNRESTRICTED' && i.reportedBy !== me.id && me.roles.includes('CITIZEN')` |
 | Release | `i.volunteer?.id === me.id && ['CLAIMED','IN_PROGRESS'].includes(i.status)` |
 | Start work | `i.volunteer?.id === me.id && i.status === 'CLAIMED'` |
 | Submit resolution | `i.volunteer?.id === me.id && ['CLAIMED','IN_PROGRESS'].includes(i.status)` and at least one PROOF photo of theirs |
@@ -710,6 +865,9 @@ Design around these absences; don't wait for them.
 - **Notifications** — nothing pushes. A volunteer learns their proof was rejected
   by reloading. If your screens need to feel live, poll the issue.
 - **Search** — filter by the fields in §4 only; no free-text search.
+- **An endpoint for the hazard question bank** — the observation and follow-up
+  question ids/text are a fixed server contract, but nothing serves them at
+  runtime; hardcode them (§4a) as you would the enums in §3.
 - **Sponsors** — the role exists and does nothing. No funding, no bounties.
 - **Spending points** — earn only; no rewards or leaderboard.
 - **Reputation** — sits at 100 for everyone. Don't build UI on it.
@@ -779,6 +937,16 @@ export const api = {
     return request<Media>(`/issues/${issueId}/media`, { method: 'POST', body });
   },
 
+  // Synchronous — can take up to roughly a minute or two in the worst case.
+  classify: (id: string, answers?: { questionId: string; answer: HazardAnswer }[]) =>
+    request<Issue>(`/issues/${id}/classification`, {
+      method: 'POST',
+      body: JSON.stringify(answers ? { answers } : {}),
+    }),
+
+  setHazard: (id: string, b: { level: 'RESTRICTED' | 'UNRESTRICTED'; reason: string }) =>
+    request<Issue>(`/issues/${id}/hazard`, { method: 'PATCH', body: JSON.stringify(b) }),
+
   claim:   (id: string) => request<Issue>(`/issues/${id}/claim`, { method: 'POST' }),
   release: (id: string) => request<Issue>(`/issues/${id}/claim`, { method: 'DELETE' }),
   start:   (id: string) => request<Issue>(`/issues/${id}/start`, { method: 'POST' }),
@@ -795,16 +963,26 @@ export const api = {
 };
 ```
 
-Reporting an issue, end to end:
+Reporting an issue, end to end — three steps, the last of which the user
+waits through:
 
 ```ts
 const issue = await api.createIssue({
   title, description, category: 'DRAINAGE', location,
+  observations: tickedObservationIds,      // [] or omitted if none were ticked
 });
 for (const file of files.slice(0, 5)) {
   await api.uploadMedia(issue.id, file);   // sequentially; 5 per issue
 }
-const withMedia = await api.getIssue(issue.id);
+
+// Synchronous — show a spinner that tolerates up to a minute or two.
+let classified = await api.classify(issue.id);
+if (classified.hazard === 'NEEDS_REVIEW' && classified.pendingQuestions?.length) {
+  const answers = await askTheReporter(classified.pendingQuestions); // your UI
+  classified = await api.classify(issue.id, answers);
+}
+// classified.hazard is now UNRESTRICTED, RESTRICTED, or a NEEDS_REVIEW that
+// only an agency can move — either way, the report itself is done.
 ```
 
 ---

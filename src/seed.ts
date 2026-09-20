@@ -7,6 +7,8 @@ import type { Connection } from 'mongoose';
 import { AppModule } from './app.module.js';
 import { PasswordService } from './auth/password.service.js';
 import {
+  HazardLevel,
+  HazardSource,
   IssueCategory,
   IssueStatus,
   MEDIA_BUCKET,
@@ -87,6 +89,12 @@ interface SeedIssue {
   reporterEmail: string;
   /** Base name of its photographs in seed/images. */
   image: string;
+  /**
+   * Set directly rather than classified: the demo has to run without an
+   * ANTHROPIC_API_KEY, and a real report with no key correctly lands in the
+   * human queue, which would leave nothing claimable here.
+   */
+  hazard: HazardLevel;
 }
 
 // All OPEN, so the claim-and-resolution slice has material to work with.
@@ -98,6 +106,7 @@ const SAMPLE_ISSUES: SeedIssue[] = [
     location: 'Market Street junction',
     reporterEmail: 'citizen@civicon.test',
     image: 'blocked-drain',
+    hazard: HazardLevel.UNRESTRICTED,
   },
   {
     title: 'Streetlight out for two weeks',
@@ -106,6 +115,9 @@ const SAMPLE_ISSUES: SeedIssue[] = [
     location: 'Ring Road East, by the school',
     reporterEmail: 'citizen@civicon.test',
     image: 'streetlight-out',
+    // Seeded RESTRICTED, not UNRESTRICTED like the rest: the demo needs one
+    // issue that reaches the agency-resolution path.
+    hazard: HazardLevel.RESTRICTED,
   },
   {
     title: 'Pothole damaging vehicles',
@@ -114,6 +126,7 @@ const SAMPLE_ISSUES: SeedIssue[] = [
     location: 'Independence Avenue, inbound',
     reporterEmail: 'volunteer@civicon.test',
     image: 'pothole',
+    hazard: HazardLevel.UNRESTRICTED,
   },
   {
     title: 'Refuse skip overflowing',
@@ -122,6 +135,7 @@ const SAMPLE_ISSUES: SeedIssue[] = [
     location: 'Behind the central market',
     reporterEmail: 'ada@example.com',
     image: 'overflowing-skip',
+    hazard: HazardLevel.UNRESTRICTED,
   },
 ];
 
@@ -244,45 +258,61 @@ async function seed() {
 
       const issueId = issue._id.toString();
       const already = await mediaService.listFor(issueId);
+
       if (already.length > 0) {
         report(`"${sample.title}" already carries ${already.length} file(s)`);
-        continue;
-      }
-      if (issue.status !== IssueStatus.OPEN) {
+      } else if (issue.status !== IssueStatus.OPEN) {
         report(`"${sample.title}" is ${issue.status}; no photo attached`);
-        continue;
+      } else {
+        const image = await loadSeedImage(SEED_IMAGES, `${sample.image}-before`);
+        const file = image
+          ? {
+              originalname: image.filename,
+              mimetype: image.mimetype,
+              size: image.buffer.length,
+              buffer: image.buffer,
+            }
+          : {
+              originalname: 'placeholder.png',
+              mimetype: 'image/png',
+              size: SAMPLE_IMAGE.length,
+              buffer: SAMPLE_IMAGE,
+            };
+
+        try {
+          await mediaService.upload(issueId, issue.reportedBy.toString(), file, [
+            Role.CITIZEN,
+          ]);
+          report(
+            image
+              ? `attached ${image.filename} to "${sample.title}"`
+              : `no ${sample.image}-before image yet; attached a placeholder to "${sample.title}"`,
+          );
+        } catch (error) {
+          // A generated image over the 5MB cap should name itself, not abort
+          // the whole seed with an anonymous size error.
+          const reason = error instanceof Error ? error.message : String(error);
+          report(`could not attach ${file.originalname}: ${reason}`);
+        }
       }
 
-      const image = await loadSeedImage(SEED_IMAGES, `${sample.image}-before`);
-      const file = image
-        ? {
-            originalname: image.filename,
-            mimetype: image.mimetype,
-            size: image.buffer.length,
-            buffer: image.buffer,
-          }
-        : {
-            originalname: 'placeholder.png',
-            mimetype: 'image/png',
-            size: SAMPLE_IMAGE.length,
-            buffer: SAMPLE_IMAGE,
-          };
-
-      try {
-        await mediaService.upload(issueId, issue.reportedBy.toString(), file, [
-          Role.CITIZEN,
-        ]);
-        report(
-          image
-            ? `attached ${image.filename} to "${sample.title}"`
-            : `no ${sample.image}-before image yet; attached a placeholder to "${sample.title}"`,
-        );
-      } catch (error) {
-        // A generated image over the 5MB cap should name itself, not abort the
-        // whole seed with an anonymous size error.
-        const reason = error instanceof Error ? error.message : String(error);
-        report(`could not attach ${file.originalname}: ${reason}`);
+      // Set explicitly rather than classified: the demo has to run without an
+      // ANTHROPIC_API_KEY, and a real report with no key correctly lands in
+      // the human queue, which would leave nothing claimable here. Done after
+      // the photo attach above, not before: a RESTRICTED issue can only take
+      // new evidence from an agency, and the reporter's own "before" photo
+      // would otherwise be refused.
+      if (issue.hazard !== sample.hazard) {
+        issue.hazard = sample.hazard;
+        issue.hazardAssessment = {
+          level: sample.hazard,
+          source: HazardSource.ADMIN,
+          reasoning: 'Set by the seed for the demo.',
+          assessedAt: new Date(),
+        };
+        await issue.save();
       }
+      report(`"${sample.title}" is ${sample.hazard}`);
     }
 
     // Put one issue in CLAIMED so the demo opens mid-arc rather than with

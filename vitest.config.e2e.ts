@@ -22,12 +22,21 @@ function testEnv(): Record<string, string> {
     // No .env (e.g. CI supplies real env vars) — fall through to process.env.
   }
 
-  const common = {
+  const common: Record<string, string> = {
     // bcrypt at the production cost of 12 is ~1.2s per call. The cost is
     // encoded in each hash, so lowering it changes only how long these suites
     // take, never what they prove.
     BCRYPT_COST: '4',
   };
+
+  // A developer's .env may carry a real key so they can run the opt-in live
+  // suite (AI_E2E=1). Every other e2e suite is written against "no API key in
+  // a test environment" — that is the fail-closed path several of them
+  // exist to prove — so a key kept around for manual live testing must not
+  // silently turn AI classification/verification on for a routine run.
+  if (process.env.AI_E2E !== '1') {
+    common.ANTHROPIC_API_KEY = '';
+  }
 
   if (process.env.MONGODB_URI) {
     if (!process.env.MONGODB_URI_TEST) {

@@ -1,5 +1,10 @@
 import { Types } from 'mongoose';
-import { AiOutcome, IssueCategory, IssueStatus } from '../contracts/index.js';
+import {
+  AiOutcome,
+  HazardLevel,
+  IssueCategory,
+  IssueStatus,
+} from '../contracts/index.js';
 import { IssueDocument } from './schemas/issue.schema.js';
 import { toPublicIssue } from './issue-response.js';
 
@@ -38,6 +43,11 @@ describe('toPublicIssue', () => {
       resolvedAt: undefined,
       verifiedAt: undefined,
       aiAssessment: undefined,
+      hazard: undefined,
+      hazardAssessment: undefined,
+      observations: [],
+      pendingQuestions: undefined,
+      answers: undefined,
       media: [],
       createdAt: new Date('2026-09-13T10:00:00Z'),
       updatedAt: new Date('2026-09-13T10:00:00Z'),
@@ -108,6 +118,20 @@ describe('toPublicIssue', () => {
     expect(
       toPublicIssue(issueDoc({ aiAssessment: assessment })).aiAssessment,
     ).toEqual(assessment);
+  });
+
+  it('exposes the hazard and what the reporter was asked', () => {
+    const result = toPublicIssue(
+      issueDoc({
+        hazard: HazardLevel.NEEDS_REVIEW,
+        observations: ['obs-wires'],
+        pendingQuestions: ['elec-1', 'elec-2', 'water-1'],
+      }),
+    );
+
+    expect(result.hazard).toBe(HazardLevel.NEEDS_REVIEW);
+    expect(result.observations).toEqual(['obs-wires']);
+    expect(result.pendingQuestions).toEqual(['elec-1', 'elec-2', 'water-1']);
   });
 });
 

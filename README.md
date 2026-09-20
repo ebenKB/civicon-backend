@@ -153,9 +153,11 @@ must supply `JWT_SECRET` in its environment — `.env` is gitignored.
 ### Postman collection
 
 [`postman/`](postman/) holds an importable collection covering every auth and
-user route, plus a **Guardrails** folder that asserts the security properties —
-privileged roles cannot be self-assigned, a missing token is 401, a wrong role
-is 403, and every login failure returns an identical message.
+user route, a **Hazard** folder that runs the classification gate end to end
+(an observation, classifying, a refused claim, an agency clearing it, and the
+claim succeeding), plus a **Guardrails** folder that asserts the security
+properties — privileged roles cannot be self-assigned, a missing token is 401,
+a wrong role is 403, and every login failure returns an identical message.
 
 Import both files into Postman, or run them headlessly:
 
@@ -165,7 +167,7 @@ postman collection run postman/civicon-auth.postman_collection.json \
   -e postman/civicon-local.postman_environment.json
 ```
 
-74 requests, 102 assertions. Sign-in requests capture their token into a
+84 requests, 120 assertions. Sign-in requests capture their token into a
 collection variable, so the rest of the collection authenticates itself. Each
 folder obtains its own tokens and registers users under randomised emails, so
 folders run independently and the collection can be re-run without a reseed.
@@ -320,6 +322,49 @@ AI_E2E=1 ANTHROPIC_API_KEY=sk-... npm run test:e2e
 
 Each assessment is one `claude-opus-5` vision call with up to four images, so
 cost scales with submissions rather than with agency review.
+
+### Hazard classification
+
+Not every reported issue is safe for a member of the public to fix. Before an
+issue can be claimed, it goes through a three-step gate:
+
+1. **Report** — `POST /issues` accepts an optional `observations` array:
+   question ids the reporter ticks for what they can see (loose wires, deep
+   water, a smell of gas...). Ticking any of them restricts the issue outright,
+   with no AI call.
+2. **Classify** — `POST /issues/:id/classification`, called by the reporter
+   once with no body. If an observation was ticked, that decides it. Otherwise
+   Claude judges the report text, category and photographs. A confident
+   verdict clears the issue (`UNRESTRICTED`) or restricts it (`RESTRICTED`).
+   An unsure one returns 3–5 follow-up question ids and sets `NEEDS_REVIEW`.
+3. **Answer, or wait for a human** — if questions came back, the reporter calls
+   the same route again with `{ "answers": [{ "questionId", "answer" }] }` for
+   every question asked, which reclassifies once. Otherwise, or if that second
+   pass is still unsure, `PATCH /issues/:id/hazard` (`AGENCY` or `ADMIN`, body
+   `{ "level": "RESTRICTED" | "UNRESTRICTED", "reason" }`) settles it by hand.
+
+| Level | Meaning |
+|---|---|
+| `UNCLASSIFIED` | Created, not yet submitted for classification. Never claimable. |
+| `UNRESTRICTED` | Ordinary volunteer work. **The only claimable value.** |
+| `RESTRICTED` | Needs a specialist. Volunteers are refused; an agency resolves it through the normal `POST /issues/:id/resolution` route while holding `AGENCY`, evidencing and confirming exactly as a volunteer would — except it pays nobody, and it cannot confirm its own fix either. |
+| `NEEDS_REVIEW` | Nobody is confident enough yet. Waiting on an agency. |
+
+`GET /issues?hazard=NEEDS_REVIEW` and `?hazard=UNCLASSIFIED` are the two
+queues an agency works from — the unsure ones, and the reports that were never
+submitted for classification at all.
+
+**Classification is synchronous.** With no `ANTHROPIC_API_KEY` every call
+fails closed to `NEEDS_REVIEW` rather than failing open — there is no
+fail-open switch, and this is the path the e2e suite proves by default, since
+no key is configured in a test environment. With a key configured, the call
+can take up to roughly a minute or two in the worst case (video included).
+
+The seed sets `hazard` directly rather than calling the classifier, so the
+demo works with no API key: a real report with none would correctly land in
+`NEEDS_REVIEW`, leaving nothing claimable. The streetlight is seeded
+`RESTRICTED` so the agency-resolution path is reachable in the demo; the rest
+are `UNRESTRICTED`.
 
 ### Civic points
 

@@ -108,6 +108,16 @@ describe('Issue claim & resolution (e2e)', () => {
       .send(ISSUE)
       .expect(201);
     issueId = body.id;
+
+    // A fresh issue is UNCLASSIFIED, and only UNRESTRICTED is claimable (a
+    // later slice). This suite is about claim/resolve mechanics, not
+    // classification, so the agency clears it by hand rather than this file
+    // exercising the AI path.
+    await request(app.getHttpServer())
+      .patch(`/issues/${issueId}/hazard`)
+      .set(auth(agencyToken))
+      .send({ level: 'UNRESTRICTED', reason: 'Classified for this suite' })
+      .expect(200);
   });
 
   afterAll(async () => {
