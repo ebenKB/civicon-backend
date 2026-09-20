@@ -175,6 +175,3 @@ IssueSchema.index({ status: 1, createdAt: -1 });
 
 // Serves the agency's review queue: everything not APPROVED needs a human.
 IssueSchema.index({ 'aiAssessment.outcome': 1 });
-
-// Serves the hazard queue: work that a volunteer may/may not do.
-IssueSchema.index({ hazard: 1 });

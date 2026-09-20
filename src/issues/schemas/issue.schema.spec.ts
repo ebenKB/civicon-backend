@@ -72,7 +72,10 @@ describe('Issue hazard fields', () => {
     expect(issue.validateSync()?.errors.hazard).toBeDefined();
   });
 
-  it('indexes hazard, because it is a queue', () => {
-    expect(IssueSchema.indexes().some(([fields]) => 'hazard' in fields)).toBe(true);
+  it('indexes hazard exactly once, because it is a queue', () => {
+    const hazardIndexCount = IssueSchema.indexes().filter(
+      ([fields]) => 'hazard' in fields
+    ).length;
+    expect(hazardIndexCount).toBe(1);
   });
 });
