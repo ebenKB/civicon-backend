@@ -1,4 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
@@ -17,8 +23,10 @@ import {
   followUpIds,
 } from '../contracts/index.js';
 import type { HazardAnswer, HazardAssessment } from '../contracts/index.js';
+import type { SubmitClassificationDto } from './dto/submit-classification.dto.js';
 import { IssueMediaService } from './issue-media.service.js';
 import type { MediaBytes } from './issue-media.service.js';
+import { IssuesService } from './issues.service.js';
 import type { IssueDocument } from './schemas/issue.schema.js';
 
 const AssessmentSchema = z.object({
@@ -70,6 +78,7 @@ export class IssueHazardService {
   constructor(
     configService: ConfigService,
     private readonly issueMediaService: IssueMediaService,
+    private readonly issuesService: IssuesService,
   ) {
     const apiKey = configService.get<string>('ANTHROPIC_API_KEY');
     this.threshold = resolveHazardThreshold(
@@ -187,6 +196,54 @@ export class IssueHazardService {
       this.logger.warn(`Hazard classification failed for ${issue._id}: ${message}`);
       return { assessment: this.needsReview(message), questionIds: [] };
     }
+  }
+
+  /**
+   * Step 3 of reporting. The first call classifies; a second call carries the
+   * answers to the questions the first one asked.
+   */
+  async submit(
+    issueId: string,
+    actorId: string,
+    dto: SubmitClassificationDto,
+  ): Promise<IssueDocument> {
+    const issue = await this.issuesService.findOne(issueId);
+
+    if (issue.reportedBy.toString() !== actorId) {
+      throw new ForbiddenException(
+        'Only the person who reported an issue can submit it for classification',
+      );
+    }
+
+    const answering = Boolean(dto.answers?.length);
+
+    if (!answering && issue.hazard !== HazardLevel.UNCLASSIFIED) {
+      throw new ConflictException('This issue has already been classified');
+    }
+
+    if (answering) {
+      const pending = issue.pendingQuestions ?? [];
+      if (pending.length === 0) {
+        throw new ConflictException('This issue is not waiting on any answers');
+      }
+      const answered = dto.answers!.map((a) => a.questionId).sort();
+      if (JSON.stringify(answered) !== JSON.stringify([...pending].sort())) {
+        throw new BadRequestException(
+          'Answer every question that was asked, and only those',
+        );
+      }
+      issue.answers = dto.answers;
+    }
+
+    const { assessment, questionIds } = await this.classify(issue, dto.answers);
+
+    issue.hazard = assessment.level;
+    issue.hazardAssessment = assessment;
+    // Cleared on the second pass whatever happens: one round of questions,
+    // then a decision or a human.
+    issue.pendingQuestions = answering ? [] : questionIds;
+
+    return issue.save();
   }
 
   private needsReview(reasoning: string): HazardAssessment {

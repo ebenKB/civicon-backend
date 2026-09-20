@@ -1,5 +1,10 @@
 import { Test } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+} from '@nestjs/common';
 import { Types } from 'mongoose';
 import {
   HAZARD_CONFIDENCE_THRESHOLD,
@@ -11,6 +16,7 @@ import {
 } from '../contracts/index.js';
 import { IssueMediaService } from './issue-media.service.js';
 import { IssueHazardService } from './issue-hazard.service.js';
+import { IssuesService } from './issues.service.js';
 import type { IssueDocument } from './schemas/issue.schema.js';
 
 const parse = vi.fn();
@@ -37,6 +43,7 @@ const issue = (overrides: Record<string, unknown> = {}) =>
 
 describe('IssueHazardService', () => {
   let mediaService: { readReportImages: ReturnType<typeof vi.fn> };
+  let issuesService: { findOne: ReturnType<typeof vi.fn> };
 
   const serviceWith = async (config: Record<string, string>) => {
     mediaService = { readReportImages: vi.fn().mockResolvedValue([]) };
@@ -44,6 +51,7 @@ describe('IssueHazardService', () => {
       providers: [
         IssueHazardService,
         { provide: IssueMediaService, useValue: mediaService },
+        { provide: IssuesService, useValue: issuesService },
         { provide: ConfigService, useValue: { get: (k: string) => config[k] } },
       ],
     }).compile();
@@ -57,6 +65,7 @@ describe('IssueHazardService', () => {
   // test that already passed.
   beforeEach(() => {
     parse.mockReset();
+    issuesService = { findOne: vi.fn() };
   });
 
   // The reporter saw it in person. A tick is believed without asking a model.
@@ -199,6 +208,7 @@ describe('IssueHazardService', () => {
       providers: [
         IssueHazardService,
         { provide: IssueMediaService, useValue: mediaService },
+        { provide: IssuesService, useValue: { findOne: vi.fn() } },
         { provide: ConfigService, useValue: { get: (k: string) => enabled[k as keyof typeof enabled] } },
       ],
     }).compile();
@@ -300,6 +310,7 @@ describe('IssueHazardService', () => {
       providers: [
         IssueHazardService,
         { provide: IssueMediaService, useValue: mediaService },
+        { provide: IssuesService, useValue: { findOne: vi.fn() } },
         { provide: ConfigService, useValue: { get: (k: string) => enabled[k as keyof typeof enabled] } },
       ],
     }).compile();
@@ -314,5 +325,110 @@ describe('IssueHazardService', () => {
     const [request] = parse.mock.calls[0];
     const content = request.messages[0].content;
     expect(content.filter((b: { type: string }) => b.type === 'image')).toHaveLength(2);
+  });
+
+  describe('submit', () => {
+    const REPORTER = new Types.ObjectId();
+    const STRANGER = new Types.ObjectId();
+
+    const saved = () => {
+      const document = issue({
+        reportedBy: REPORTER,
+        hazard: HazardLevel.UNCLASSIFIED,
+        save: vi.fn().mockImplementation(function (this: unknown) { return this; }),
+      });
+      return document;
+    };
+
+    it('refuses anyone but the reporter', async () => {
+      const document = saved();
+      issuesService.findOne.mockResolvedValue(document);
+      const service = await serviceWith(enabled);
+
+      await expect(
+        service.submit(document._id.toString(), STRANGER.toString(), {}),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    // Otherwise a reporter could keep submitting until they liked the verdict.
+    it('refuses a second submission once a level is set', async () => {
+      const document = saved();
+      document.hazard = HazardLevel.RESTRICTED;
+      issuesService.findOne.mockResolvedValue(document);
+      const service = await serviceWith(enabled);
+
+      await expect(
+        service.submit(document._id.toString(), REPORTER.toString(), {}),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('queues for review and records the questions when unsure', async () => {
+      parse.mockResolvedValue({
+        parsed_output: {
+          dangerous: true, confidence: 0.4, reasoning: 'Cannot tell.',
+          questionIds: ['elec-1', 'elec-2', 'water-1'],
+        },
+        model: 'claude-opus-5',
+      });
+      const document = saved();
+      issuesService.findOne.mockResolvedValue(document);
+      const service = await serviceWith(enabled);
+
+      const result = await service.submit(
+        document._id.toString(), REPORTER.toString(), {},
+      );
+
+      expect(result.hazard).toBe(HazardLevel.NEEDS_REVIEW);
+      expect(result.pendingQuestions).toEqual(['elec-1', 'elec-2', 'water-1']);
+    });
+
+    it('rejects answers that do not match what was asked', async () => {
+      const document = saved();
+      document.hazard = HazardLevel.NEEDS_REVIEW;
+      document.pendingQuestions = ['elec-1', 'elec-2', 'water-1'];
+      issuesService.findOne.mockResolvedValue(document);
+      const service = await serviceWith(enabled);
+
+      await expect(
+        service.submit(document._id.toString(), REPORTER.toString(), {
+          answers: [{ questionId: 'elec-1', answer: HazardAnswer.NO }],
+        }),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('settles the issue when the answers make the model confident', async () => {
+      parse.mockResolvedValue({
+        parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Cleared.', questionIds: [] },
+        model: 'claude-opus-5',
+      });
+      const document = saved();
+      document.hazard = HazardLevel.NEEDS_REVIEW;
+      document.pendingQuestions = ['elec-1'];
+      issuesService.findOne.mockResolvedValue(document);
+      const service = await serviceWith(enabled);
+
+      const result = await service.submit(
+        document._id.toString(), REPORTER.toString(),
+        { answers: [{ questionId: 'elec-1', answer: HazardAnswer.NO }] },
+      );
+
+      expect(result.hazard).toBe(HazardLevel.UNRESTRICTED);
+      expect(result.pendingQuestions).toEqual([]);
+    });
+
+    // Once a person has ruled, the reporter's answers are moot.
+    it('refuses answers after a human has decided', async () => {
+      const document = saved();
+      document.hazard = HazardLevel.NEEDS_REVIEW;
+      document.pendingQuestions = [];
+      issuesService.findOne.mockResolvedValue(document);
+      const service = await serviceWith(enabled);
+
+      await expect(
+        service.submit(document._id.toString(), REPORTER.toString(), {
+          answers: [{ questionId: 'elec-1', answer: HazardAnswer.NO }],
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 });

@@ -22,7 +22,9 @@ import { ChangeStatusDto } from './dto/change-status.dto.js';
 import { CreateIssueDto } from './dto/create-issue.dto.js';
 import { ListIssuesQuery } from './dto/list-issues.query.js';
 import { ResolveIssueDto } from './dto/resolve-issue.dto.js';
+import { SubmitClassificationDto } from './dto/submit-classification.dto.js';
 import { UpdateIssueDto } from './dto/update-issue.dto.js';
+import { IssueHazardService } from './issue-hazard.service.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaService } from './issue-media.service.js';
 import { toPublicIssue } from './issue-response.js';
@@ -37,6 +39,7 @@ export class IssuesController {
     private readonly issuesService: IssuesService,
     private readonly issueLifecycleService: IssueLifecycleService,
     private readonly issueMediaService: IssueMediaService,
+    private readonly issueHazardService: IssueHazardService,
     private readonly usersService: UsersService,
   ) {}
 
@@ -176,6 +179,22 @@ export class IssuesController {
   ) {
     return this.present(
       await this.issueLifecycleService.resolve(id, user.id, resolveIssueDto),
+    );
+  }
+
+  /**
+   * Step 3 of reporting: classify. Called once with no body, then again with
+   * answers if the first call came back with questions.
+   */
+  @Post(':id/classification')
+  @HttpCode(HttpStatus.OK)
+  async classify(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() submitClassificationDto: SubmitClassificationDto,
+  ) {
+    return this.present(
+      await this.issueHazardService.submit(id, user.id, submitClassificationDto),
     );
   }
 }

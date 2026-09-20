@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
 import { IssueCategory, IssueStatus } from '../contracts/index.js';
+import { IssueHazardService } from './issue-hazard.service.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaService } from './issue-media.service.js';
 import { IssuesController } from './issues.controller.js';
@@ -33,6 +34,7 @@ describe('IssuesController', () => {
   let service: Record<string, ReturnType<typeof vi.fn>>;
   let lifecycle: Record<string, ReturnType<typeof vi.fn>>;
   let mediaService: Record<string, ReturnType<typeof vi.fn>>;
+  let hazardService: Record<string, ReturnType<typeof vi.fn>>;
   let usersService: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
@@ -52,6 +54,7 @@ describe('IssuesController', () => {
     mediaService = { listFor: vi.fn(), listForMany: vi.fn() };
     mediaService.listFor.mockResolvedValue([]);
     mediaService.listForMany.mockResolvedValue(new Map());
+    hazardService = { submit: vi.fn() };
     usersService = { namesFor: vi.fn() };
     usersService.namesFor.mockResolvedValue(new Map());
 
@@ -61,6 +64,7 @@ describe('IssuesController', () => {
         { provide: IssuesService, useValue: service },
         { provide: IssueLifecycleService, useValue: lifecycle },
         { provide: IssueMediaService, useValue: mediaService },
+        { provide: IssueHazardService, useValue: hazardService },
         { provide: UsersService, useValue: usersService },
       ],
     }).compile();
@@ -181,6 +185,20 @@ describe('IssuesController', () => {
       { note: 'Cleared it' },
     );
   });
+
+  it('passes the caller id and the answers to the hazard service', async () => {
+    hazardService.submit.mockResolvedValue(issueDoc());
+
+    await controller.classify('507f1f77bcf86cd799439011', caller, {
+      answers: [],
+    });
+
+    expect(hazardService.submit).toHaveBeenCalledWith(
+      '507f1f77bcf86cd799439011',
+      reporterId.toString(),
+      { answers: [] },
+    );
+  });
 });
 
 describe('IssuesController volunteer names', () => {
@@ -204,6 +222,7 @@ describe('IssuesController volunteer names', () => {
   let service: Record<string, ReturnType<typeof vi.fn>>;
   let lifecycle: Record<string, ReturnType<typeof vi.fn>>;
   let mediaService: Record<string, ReturnType<typeof vi.fn>>;
+  let hazardService: Record<string, ReturnType<typeof vi.fn>>;
   let usersService: Record<string, ReturnType<typeof vi.fn>>;
 
   beforeEach(async () => {
@@ -223,6 +242,7 @@ describe('IssuesController volunteer names', () => {
     mediaService = { listFor: vi.fn(), listForMany: vi.fn() };
     mediaService.listFor.mockResolvedValue([]);
     mediaService.listForMany.mockResolvedValue(new Map());
+    hazardService = { submit: vi.fn() };
     usersService = { namesFor: vi.fn() };
     usersService.namesFor.mockResolvedValue(
       new Map([[volunteerId.toString(), 'Kofi Volunteer']]),
@@ -234,6 +254,7 @@ describe('IssuesController volunteer names', () => {
         { provide: IssuesService, useValue: service },
         { provide: IssueLifecycleService, useValue: lifecycle },
         { provide: IssueMediaService, useValue: mediaService },
+        { provide: IssueHazardService, useValue: hazardService },
         { provide: UsersService, useValue: usersService },
       ],
     }).compile();
