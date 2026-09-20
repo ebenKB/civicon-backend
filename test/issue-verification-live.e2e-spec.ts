@@ -8,9 +8,14 @@ import { AI_MODEL } from './../src/contracts/index.js';
  *
  * It asserts the shape of a real response, not a particular verdict — a vision
  * model's judgement is not a stable thing to assert on.
+ *
+ * Reads LIVE_ANTHROPIC_API_KEY, not ANTHROPIC_API_KEY: vitest.config.e2e.ts
+ * always clears the latter so every other suite keeps running with no key,
+ * even under AI_E2E=1, and forwards the real value under this other name for
+ * this file alone to pick up.
  */
-const live =
-  process.env.AI_E2E === '1' && Boolean(process.env.ANTHROPIC_API_KEY);
+const liveApiKey = process.env.LIVE_ANTHROPIC_API_KEY;
+const live = process.env.AI_E2E === '1' && Boolean(liveApiKey);
 
 describe.skipIf(!live)('AI proof verification (live API)', () => {
   it('returns a parseable verdict for a real request', async () => {
@@ -18,7 +23,7 @@ describe.skipIf(!live)('AI proof verification (live API)', () => {
     const { zodOutputFormat } = await import('@anthropic-ai/sdk/helpers/zod');
     const { z } = await import('zod');
 
-    const client = new Anthropic();
+    const client = new Anthropic({ apiKey: liveApiKey });
     const response = await client.messages.parse({
       model: AI_MODEL,
       max_tokens: 1000,

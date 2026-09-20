@@ -29,13 +29,19 @@ function testEnv(): Record<string, string> {
     BCRYPT_COST: '4',
   };
 
-  // A developer's .env may carry a real key so they can run the opt-in live
-  // suite (AI_E2E=1). Every other e2e suite is written against "no API key in
-  // a test environment" — that is the fail-closed path several of them
-  // exist to prove — so a key kept around for manual live testing must not
-  // silently turn AI classification/verification on for a routine run.
-  if (process.env.AI_E2E !== '1') {
-    common.ANTHROPIC_API_KEY = '';
+  // A developer's .env (or shell) may carry a real key so they can run the
+  // opt-in live suite (AI_E2E=1). Every OTHER e2e suite is written against
+  // "no API key in a test environment" — the fail-closed path several of them
+  // exist to prove — so ANTHROPIC_API_KEY itself is always cleared here,
+  // unconditionally, whether or not AI_E2E is set. The real value (if any) is
+  // carried instead under a distinct name that only
+  // test/issue-verification-live.e2e-spec.ts reads, so AI_E2E=1 widens
+  // nothing: every suite except that one still runs with no key, and the live
+  // suite still needs AI_E2E=1 *and* this value to opt in.
+  const realKey = process.env.ANTHROPIC_API_KEY;
+  common.ANTHROPIC_API_KEY = '';
+  if (realKey) {
+    common.LIVE_ANTHROPIC_API_KEY = realKey;
   }
 
   if (process.env.MONGODB_URI) {
