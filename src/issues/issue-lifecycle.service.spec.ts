@@ -552,6 +552,54 @@ describe('IssueLifecycleService', () => {
         ),
       ).rejects.toThrow('work you did yourself');
     });
+
+    // agencyResolverId is assigned in resolve() and, before this fix, was
+    // never cleared anywhere — not even by returnToOpen, which already
+    // clears volunteerId, claimedAt, resolvedAt and resolutionNote for
+    // exactly this reason. A stale id would silently block payment for a
+    // genuine volunteer who does the work after the issue is reopened and
+    // reclassified.
+    it('pays a volunteer who resolves the issue after it is reopened from a prior agency resolution', async () => {
+      const issue = issueDoc({
+        status: IssueStatus.RESOLVED,
+        hazard: HazardLevel.RESTRICTED,
+        agencyResolverId: new Types.ObjectId(AGENCY_USER),
+      });
+      // The same mutable document is returned on every findOne call, so
+      // mutations from one step in the pipeline are visible to the next —
+      // exactly as the real repository behaves across a sequence of calls.
+      issuesService.findOne.mockResolvedValue(issue);
+
+      // The agency sends it back for more work, then force-releases it.
+      await service.changeStatus(
+        ISSUE_ID,
+        { status: IssueStatus.IN_PROGRESS, reason: 'needs more work' },
+        OTHER_AGENCY,
+      );
+      await service.changeStatus(
+        ISSUE_ID,
+        { status: IssueStatus.OPEN, reason: 'reassigning' },
+        OTHER_AGENCY,
+      );
+
+      expect(issue.agencyResolverId).toBeUndefined();
+
+      // Reclassified UNRESTRICTED by the hazard service, out of scope here.
+      issue.hazard = HazardLevel.UNRESTRICTED;
+
+      // A genuine volunteer claims it and does the work.
+      await service.claim(ISSUE_ID, VOLUNTEER);
+      await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'Fixed it' }, [
+        Role.CITIZEN,
+      ]);
+      await service.changeStatus(
+        ISSUE_ID,
+        { status: IssueStatus.VERIFIED },
+        OTHER_AGENCY,
+      );
+
+      expect(pointsService.awardForVerification).toHaveBeenCalled();
+    });
   });
 
   describe('the agency verdict', () => {

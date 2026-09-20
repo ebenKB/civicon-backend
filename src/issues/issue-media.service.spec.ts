@@ -24,6 +24,7 @@ const extractFramesMock = vi.mocked(extractFrames);
 const REPORTER = '507f1f77bcf86cd799439011';
 const STRANGER = '507f1f77bcf86cd799439099';
 const AGENCY_USER = '507f1f77bcf86cd799439077';
+const OTHER_AGENCY_USER = '507f1f77bcf86cd799439088';
 const ISSUE_ID = '507f1f77bcf86cd799439022';
 
 const fileDoc = (overrides: Record<string, unknown> = {}) => ({
@@ -235,7 +236,14 @@ describe('IssueMediaService', () => {
     });
 
     it('lets an agency remove proof it attached to a restricted issue', async () => {
-      const doc = fileDoc();
+      const doc = fileDoc({
+        metadata: {
+          issueId: new Types.ObjectId(ISSUE_ID),
+          uploadedBy: new Types.ObjectId(AGENCY_USER),
+          contentType: 'image/png',
+          purpose: MediaPurpose.PROOF,
+        },
+      });
       bucket.find.mockReturnValue(cursorOf([doc]));
       issuesService.findOne.mockResolvedValue({
         _id: new Types.ObjectId(ISSUE_ID),
@@ -247,6 +255,57 @@ describe('IssueMediaService', () => {
       await service.remove(doc._id.toString(), AGENCY_USER, [Role.AGENCY]);
 
       expect(bucket.delete).toHaveBeenCalledWith(doc._id);
+    });
+
+    // An agency's removal right on a restricted issue is bounded to files it
+    // uploaded itself. Without this, holding AGENCY would let a caller delete
+    // anything on the issue — including the reporter's original photograph,
+    // which is the "before" evidence the AI comparison and the public record
+    // depend on.
+    it("refuses an agency deleting the reporter's report photo on a restricted issue", async () => {
+      const doc = fileDoc({
+        metadata: {
+          issueId: new Types.ObjectId(ISSUE_ID),
+          uploadedBy: new Types.ObjectId(REPORTER),
+          contentType: 'image/png',
+          purpose: MediaPurpose.REPORT,
+        },
+      });
+      bucket.find.mockReturnValue(cursorOf([doc]));
+      issuesService.findOne.mockResolvedValue({
+        _id: new Types.ObjectId(ISSUE_ID),
+        status: IssueStatus.OPEN,
+        hazard: HazardLevel.RESTRICTED,
+        reportedBy: new Types.ObjectId(REPORTER),
+      });
+
+      await expect(
+        service.remove(doc._id.toString(), AGENCY_USER, [Role.AGENCY]),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(bucket.delete).not.toHaveBeenCalled();
+    });
+
+    it("refuses an agency deleting another agency user's proof", async () => {
+      const doc = fileDoc({
+        metadata: {
+          issueId: new Types.ObjectId(ISSUE_ID),
+          uploadedBy: new Types.ObjectId(OTHER_AGENCY_USER),
+          contentType: 'image/png',
+          purpose: MediaPurpose.PROOF,
+        },
+      });
+      bucket.find.mockReturnValue(cursorOf([doc]));
+      issuesService.findOne.mockResolvedValue({
+        _id: new Types.ObjectId(ISSUE_ID),
+        status: IssueStatus.OPEN,
+        hazard: HazardLevel.RESTRICTED,
+        reportedBy: new Types.ObjectId(REPORTER),
+      });
+
+      await expect(
+        service.remove(doc._id.toString(), AGENCY_USER, [Role.AGENCY]),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(bucket.delete).not.toHaveBeenCalled();
     });
   });
 

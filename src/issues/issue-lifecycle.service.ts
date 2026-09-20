@@ -333,6 +333,11 @@ export class IssueLifecycleService {
     issue.claimedAt = undefined;
     issue.resolvedAt = undefined;
     issue.resolutionNote = undefined;
+    // Cleared alongside the above: left in place, it would silently block
+    // payment for a genuine volunteer who claims and resolves the issue
+    // after it is reopened and reclassified — the award/reversal predicate
+    // reads this field.
+    issue.agencyResolverId = undefined;
     issue.status = IssueStatus.OPEN;
     return issue.save();
   }

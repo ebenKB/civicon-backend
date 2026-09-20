@@ -185,7 +185,7 @@ export class IssueMediaService implements OnModuleInit {
       );
     }
 
-    await this.assertMayAttach(issueId, actorId, roles, 'remove');
+    await this.assertMayAttach(issueId, actorId, roles, 'remove', file);
     await this.bucket.delete(file._id);
   }
 
@@ -198,13 +198,18 @@ export class IssueMediaService implements OnModuleInit {
    * The RESTRICTED gate below only ever blocks 'attach': a reporter whose
    * report photo predates classification must still be able to remove it, and
    * removal of a specific file already falls back to the ordinary
-   * reporter/holder ownership checks further down.
+   * reporter/holder ownership checks further down. `file` is only needed for
+   * a 'remove': agency status on a restricted issue grants removal of media
+   * that agency uploaded itself, not a blanket right to delete anything on
+   * the issue — the reporter's original photograph in particular is the
+   * evidence the AI comparison and the public record depend on.
    */
   private async assertMayAttach(
     issueId: string,
     actorId: string,
     roles: Role[],
     action: 'attach' | 'remove' = 'attach',
+    file?: MediaFileDocument,
   ): Promise<MediaPurpose> {
     const issue = await this.issuesService.findOne(issueId);
 
@@ -218,6 +223,14 @@ export class IssueMediaService implements OnModuleInit {
         issue.status === IssueStatus.IN_PROGRESS)
     ) {
       if (roles.includes(Role.AGENCY)) {
+        if (
+          action === 'remove' &&
+          file?.metadata?.uploadedBy?.toString() !== actorId
+        ) {
+          throw new ForbiddenException(
+            'An agency may only remove media it attached itself',
+          );
+        }
         return MediaPurpose.PROOF;
       }
       if (action === 'attach') {
