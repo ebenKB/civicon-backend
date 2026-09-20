@@ -217,6 +217,20 @@ export class IssueHazardService {
       );
     }
 
+    // Snapshotted before classify() below, which can run for up to a minute.
+    // The reporter is the one actor who can edit the issue itself during
+    // that window (via PATCH /issues/:id, or a new REPORT photo) — an edit
+    // that changes what the classifier was actually judging. Since the
+    // reporter's own edit doesn't touch `hazard` while it's still
+    // UNCLASSIFIED, the hazard-only guard below would miss it entirely and
+    // let a verdict about the old text land on the new one. `updatedAt`
+    // moves on any such edit (IssuesService.updateOwn saves unconditionally;
+    // IssueMediaService.upload now does too for a REPORT photo), so
+    // including it in the guard closes both paths with one field, rather
+    // than re-listing title/description/category/location here and still
+    // missing the media case.
+    const readAt = issue.updatedAt;
+
     const answering = Boolean(dto.answers?.length);
 
     if (!answering && issue.hazard !== HazardLevel.UNCLASSIFIED) {
@@ -251,16 +265,17 @@ export class IssueHazardService {
     }
 
     // classify() above can run for up to a minute. If a human rules on this
-    // issue through PATCH /issues/:id/hazard while it is in flight, this
-    // save must not be the one that gets the last word: the filter
-    // re-asserts the exact state this call started from — hazard still
-    // UNCLASSIFIED on a first call, the same pendingQuestions on an answers
-    // call — as a single atomic conditional update, so a write that lost the
-    // race touches nothing rather than clobbering a human decision with a
-    // stale AI verdict.
+    // issue through PATCH /issues/:id/hazard while it is in flight, or the
+    // reporter edits the issue itself (see readAt above), this save must not
+    // be the one that gets the last word: the filter re-asserts the exact
+    // state this call started from — hazard still UNCLASSIFIED and the same
+    // updatedAt on a first call, the same pendingQuestions and updatedAt on
+    // an answers call — as a single atomic conditional update, so a write
+    // that lost the race touches nothing rather than clobbering a decision,
+    // or a fact, that has since changed underneath it.
     const expected = answering
-      ? { pendingQuestions: pending }
-      : { hazard: HazardLevel.UNCLASSIFIED };
+      ? { pendingQuestions: pending, updatedAt: readAt }
+      : { hazard: HazardLevel.UNCLASSIFIED, updatedAt: readAt };
 
     const result = await this.issuesService.updateIfMatches(issueId, expected, update);
 

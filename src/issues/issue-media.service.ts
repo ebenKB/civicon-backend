@@ -123,11 +123,22 @@ export class IssueMediaService implements OnModuleInit {
     // IssuesService.updateOwn for the sibling fix). Checked after the upload
     // actually succeeds, so a rejected or oversize file never resets a
     // classification for nothing. A PROOF upload never reaches here.
-    if (purpose === MediaPurpose.REPORT && issue.hazard !== HazardLevel.UNCLASSIFIED) {
-      issue.hazard = HazardLevel.UNCLASSIFIED;
-      issue.hazardAssessment = undefined;
-      issue.pendingQuestions = undefined;
-      issue.answers = undefined;
+    if (purpose === MediaPurpose.REPORT) {
+      if (issue.hazard !== HazardLevel.UNCLASSIFIED) {
+        issue.hazard = HazardLevel.UNCLASSIFIED;
+        issue.hazardAssessment = undefined;
+        issue.pendingQuestions = undefined;
+        issue.answers = undefined;
+      }
+      // Touch the issue even when there is nothing to reset — a fresh,
+      // still-UNCLASSIFIED issue mid-classification. IssueHazardService
+      // .submit()'s guarded write asserts `updatedAt` hasn't moved since it
+      // started reading, specifically so a REPORT photo added while
+      // classify() is awaiting the model gets caught even though `hazard`
+      // itself hasn't changed yet. Without this, the race would go
+      // undetected for exactly the reports that need it most: ones still
+      // being classified for the first time.
+      issue.updatedAt = new Date();
       await issue.save();
     }
 

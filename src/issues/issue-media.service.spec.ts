@@ -471,18 +471,29 @@ describe('IssueMediaService', () => {
       expect(issue.save).toHaveBeenCalled();
     });
 
-    it('does not save at all when the issue was already UNCLASSIFIED', async () => {
+    // A fresh, still-UNCLASSIFIED issue has nothing to reset, but the photo
+    // still needs to register: if this issue is mid-classification right
+    // now, IssueHazardService.submit()'s guarded write relies on `updatedAt`
+    // moving to notice a REPORT photo the classifier never saw, even though
+    // `hazard` itself doesn't change here.
+    it('still touches updatedAt on a REPORT upload when the issue was already UNCLASSIFIED', async () => {
+      const originalUpdatedAt = new Date('2026-09-01T00:00:00Z');
       const issue = {
         _id: new Types.ObjectId(ISSUE_ID),
         status: IssueStatus.OPEN,
         reportedBy: new Types.ObjectId(REPORTER),
         hazard: HazardLevel.UNCLASSIFIED,
-        save: vi.fn(),
+        updatedAt: originalUpdatedAt,
+        save: vi.fn().mockImplementation(function (this: unknown) {
+          return Promise.resolve(this);
+        }),
       };
 
       await successfulUpload(issue);
 
-      expect(issue.save).not.toHaveBeenCalled();
+      expect(issue.hazard).toBe(HazardLevel.UNCLASSIFIED);
+      expect(issue.save).toHaveBeenCalled();
+      expect(issue.updatedAt.getTime()).toBeGreaterThan(originalUpdatedAt.getTime());
     });
 
     // A PROOF upload is evidence of a fix, not new report content — it must

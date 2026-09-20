@@ -167,19 +167,22 @@ postman collection run postman/civicon-auth.postman_collection.json \
   -e postman/civicon-local.postman_environment.json
 ```
 
-**`npm run seed` is required**, not optional boilerplate: the **Hazard**,
-**Issue lifecycle** and **Civic points** folders sign in as the seeded
-`@civicon.test` accounts (see "Demo accounts" above) rather than registering
-their own, so those three fail outright against an unseeded database. Every
-other folder (Auth, Users, Issues, Issues — guardrails, Issue media,
-Guardrails) registers its own users under randomised emails and needs no seed
-data.
+**`npm run seed` is required for the whole collection except the Public
+folder.** Every other folder signs in as one of the seeded `@civicon.test`
+accounts (see "Demo accounts" above) rather than registering its own: Auth's
+Login and Civic points use `volunteer@civicon.test`; Users (admin only) and
+Guardrails use `admin@civicon.test`, plus Guardrails' non-admin checks reuse
+`citizen@civicon.test`; Issues signs in as `citizen@civicon.test` and
+`agency@civicon.test`; Issues — guardrails signs in as
+`volunteer@civicon.test`; Issue lifecycle and Hazard each use all three
+(`citizen@civicon.test`, `volunteer@civicon.test`, `agency@civicon.test`); and
+Issue media's first request looks up a seeded issue's photo rather than
+uploading a fresh one. Run `npm run seed` (the command above already does)
+before running the collection against any database, and again after any
+`--fresh` reseed.
 
 84 requests, 120 assertions. Sign-in requests capture their token into a
-collection variable, so the rest of the collection authenticates itself. The
-randomised-user folders obtain their own tokens and run independently of each
-other and of a reseed; the three seeded-account folders instead depend on
-`npm run seed` having been run at least once against the database in use.
+collection variable, so the rest of the collection authenticates itself.
 
 Run just the security checks with `-i Guardrails`.
 

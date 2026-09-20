@@ -39,6 +39,7 @@ const issue = (overrides: Record<string, unknown> = {}) =>
     category: IssueCategory.ELECTRICITY,
     location: 'Ring Road East',
     observations: [],
+    updatedAt: new Date('2026-09-20T10:00:00Z'),
     ...overrides,
   }) as unknown as IssueDocument;
 
@@ -504,7 +505,10 @@ describe('IssueHazardService', () => {
         await service.submit(document._id.toString(), REPORTER.toString(), {});
 
         const [, expected] = issuesService.updateIfMatches.mock.calls[0];
-        expect(expected).toEqual({ hazard: HazardLevel.UNCLASSIFIED });
+        expect(expected).toEqual({
+          hazard: HazardLevel.UNCLASSIFIED,
+          updatedAt: document.updatedAt,
+        });
       });
 
       it('guards the answers-call save on pendingQuestions still matching what was asked', async () => {
@@ -523,7 +527,10 @@ describe('IssueHazardService', () => {
         });
 
         const [, expected] = issuesService.updateIfMatches.mock.calls[0];
-        expect(expected).toEqual({ pendingQuestions: ['elec-1'] });
+        expect(expected).toEqual({
+          pendingQuestions: ['elec-1'],
+          updatedAt: document.updatedAt,
+        });
       });
 
       // The interleaving this exists for: a human's RESTRICTED lands first,
@@ -564,6 +571,56 @@ describe('IssueHazardService', () => {
             answers: [{ questionId: 'elec-1', answer: HazardAnswer.NO }],
           }),
         ).rejects.toThrow(ConflictException);
+      });
+
+      // The race the hazard-only guard used to miss entirely: the reporter,
+      // not an agency, edits the issue mid-flight. hazard stays UNCLASSIFIED
+      // throughout (there is nothing to reset yet), so only updatedAt
+      // changes — exactly what IssuesService.updateOwn's unconditional save
+      // does on every edit. `updateIfMatches` here is a small in-memory
+      // stand-in for a real conditional `findOneAndUpdate`: it only "writes"
+      // when every key submit() asked for still matches the current record,
+      // so this test proves the production filter (not a canned null) is
+      // what catches the interleaving.
+      it('conflicts, rather than writing UNRESTRICTED, when the reporter edits a classifier input mid-flight', async () => {
+        parse.mockResolvedValue({
+          parsed_output: { dangerous: false, confidence: 0.9, reasoning: 'Routine.', questionIds: [] },
+          model: 'claude-opus-5',
+        });
+        const document = saved();
+        issuesService.findOne.mockResolvedValue(document);
+
+        const database: Record<string, unknown> = { ...document };
+        issuesService.updateIfMatches = vi.fn(
+          (
+            _id: string,
+            expected: Record<string, unknown>,
+            update: Record<string, unknown>,
+          ) => {
+            const matches = Object.entries(expected).every(
+              ([key, value]) => database[key]?.valueOf() === value?.valueOf(),
+            );
+            if (!matches) {
+              return Promise.resolve(null);
+            }
+            Object.assign(database, update);
+            return Promise.resolve(database);
+          },
+        );
+        const service = await serviceWith(enabled);
+
+        // The reporter's PATCH /issues/:id landing while classify() is
+        // still awaiting the model: the description the AI judged no longer
+        // matches, and IssuesService.updateOwn bumped updatedAt on the way.
+        database.description = 'Live cable down on the pavement, sparking.';
+        database.updatedAt = new Date(
+          (document.updatedAt as Date).getTime() + 1000,
+        );
+
+        await expect(
+          service.submit(document._id.toString(), REPORTER.toString(), {}),
+        ).rejects.toThrow(ConflictException);
+        expect(database.hazard).toBe(HazardLevel.UNCLASSIFIED);
       });
     });
   });
