@@ -312,6 +312,22 @@ export class IssueMediaService implements OnModuleInit {
     }));
   }
 
+  /**
+   * The reporter's photographs alone, for hazard classification. Reuses the
+   * same side logic as the proof assessment, so a report proved only by video
+   * still contributes frames.
+   */
+  async readReportImages(issueId: string, max: number): Promise<MediaBytes[]> {
+    const files = (await this.bucket
+      .find({ 'metadata.issueId': new Types.ObjectId(issueId) })
+      .toArray()) as unknown as MediaFileDocument[];
+
+    return this.sideFor(
+      files.filter((file) => file.metadata?.purpose === MediaPurpose.REPORT),
+      max,
+    );
+  }
+
   private async toBytes(file: MediaFileDocument): Promise<MediaBytes> {
     return {
       base64: (await this.toBuffer(file)).toString('base64'),

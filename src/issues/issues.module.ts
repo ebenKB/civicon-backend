@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PointsModule } from '../points/points.module.js';
 import { UsersModule } from '../users/users.module.js';
+import { IssueHazardService } from './issue-hazard.service.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaController } from './issue-media.controller.js';
 import { IssueMediaService } from './issue-media.service.js';
@@ -22,6 +23,7 @@ import { Issue, IssueSchema } from './schemas/issue.schema.js';
     IssueLifecycleService,
     IssueMediaService,
     IssueVerificationService,
+    IssueHazardService,
   ],
   // Exported so later slices (claiming, points) can inject it.
   exports: [
@@ -29,6 +31,7 @@ import { Issue, IssueSchema } from './schemas/issue.schema.js';
     IssueLifecycleService,
     IssueMediaService,
     IssueVerificationService,
+    IssueHazardService,
   ],
 })
 export class IssuesModule {}

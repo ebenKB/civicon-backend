@@ -363,4 +363,35 @@ describe('IssueMediaService', () => {
       expect(result.after).toHaveLength(0);
     });
   });
+
+  describe('readReportImages', () => {
+    it('returns the reporter photographs and nothing else', async () => {
+      bucket.openDownloadStream = vi.fn(() => Readable.from([Buffer.from('bytes')]));
+      bucket.find.mockReturnValue(
+        cursorOf([
+          fileDoc({
+            metadata: {
+              issueId: new Types.ObjectId(ISSUE_ID),
+              uploadedBy: new Types.ObjectId(REPORTER),
+              contentType: 'image/png',
+              purpose: MediaPurpose.REPORT,
+            },
+          }),
+          fileDoc({
+            metadata: {
+              issueId: new Types.ObjectId(ISSUE_ID),
+              uploadedBy: new Types.ObjectId(STRANGER),
+              contentType: 'image/png',
+              purpose: MediaPurpose.PROOF,
+            },
+          }),
+        ]),
+      );
+
+      const images = await service.readReportImages(ISSUE_ID, 2);
+
+      expect(images).toHaveLength(1);
+      expect(images[0].contentType).toBe('image/png');
+    });
+  });
 });
