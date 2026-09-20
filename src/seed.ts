@@ -269,7 +269,9 @@ async function seed() {
           };
 
       try {
-        await mediaService.upload(issueId, issue.reportedBy.toString(), file);
+        await mediaService.upload(issueId, issue.reportedBy.toString(), file, [
+          Role.CITIZEN,
+        ]);
         report(
           image
             ? `attached ${image.filename} to "${sample.title}"`

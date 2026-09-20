@@ -49,7 +49,7 @@ export class IssueMediaController {
     if (!file) {
       throw new BadRequestException('A file is required, in the "file" field');
     }
-    return this.issueMediaService.upload(id, user.id, file);
+    return this.issueMediaService.upload(id, user.id, file, user.roles);
   }
 
   @Public()

@@ -183,6 +183,7 @@ describe('IssuesController', () => {
       '507f1f77bcf86cd799439011',
       reporterId.toString(),
       { note: 'Cleared it' },
+      caller.roles,
     );
   });
 

@@ -6,10 +6,11 @@ import {
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { getConnectionToken } from '@nestjs/mongoose';
+import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { IssueStatus, MediaPurpose } from '../contracts/index.js';
+import { HazardLevel, IssueStatus, MediaPurpose, Role } from '../contracts/index.js';
 import { IssueMediaService } from './issue-media.service.js';
 import { IssuesService } from './issues.service.js';
 import { extractFrames } from './video-frames.js';
@@ -22,6 +23,7 @@ const extractFramesMock = vi.mocked(extractFrames);
 
 const REPORTER = '507f1f77bcf86cd799439011';
 const STRANGER = '507f1f77bcf86cd799439099';
+const AGENCY_USER = '507f1f77bcf86cd799439077';
 const ISSUE_ID = '507f1f77bcf86cd799439022';
 
 const fileDoc = (overrides: Record<string, unknown> = {}) => ({
@@ -89,7 +91,7 @@ describe('IssueMediaService', () => {
       issuesService.findOne.mockResolvedValue(openIssue());
 
       await expect(
-        service.upload(ISSUE_ID, STRANGER, anImage()),
+        service.upload(ISSUE_ID, STRANGER, anImage(), [Role.CITIZEN]),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -100,7 +102,7 @@ describe('IssueMediaService', () => {
       });
 
       await expect(
-        service.upload(ISSUE_ID, REPORTER, anImage()),
+        service.upload(ISSUE_ID, REPORTER, anImage(), [Role.CITIZEN]),
       ).rejects.toBeInstanceOf(ConflictException);
     });
 
@@ -109,10 +111,15 @@ describe('IssueMediaService', () => {
       bucket.find.mockReturnValue(cursorOf([]));
 
       await expect(
-        service.upload(ISSUE_ID, REPORTER, {
-          ...anImage(),
-          mimetype: 'application/pdf',
-        }),
+        service.upload(
+          ISSUE_ID,
+          REPORTER,
+          {
+            ...anImage(),
+            mimetype: 'application/pdf',
+          },
+          [Role.CITIZEN],
+        ),
       ).rejects.toBeInstanceOf(UnsupportedMediaTypeException);
     });
 
@@ -121,7 +128,9 @@ describe('IssueMediaService', () => {
       bucket.find.mockReturnValue(cursorOf([]));
 
       await expect(
-        service.upload(ISSUE_ID, REPORTER, anImage(6 * 1024 * 1024)),
+        service.upload(ISSUE_ID, REPORTER, anImage(6 * 1024 * 1024), [
+          Role.CITIZEN,
+        ]),
       ).rejects.toBeInstanceOf(PayloadTooLargeException);
     });
 
@@ -132,7 +141,7 @@ describe('IssueMediaService', () => {
       );
 
       await expect(
-        service.upload(ISSUE_ID, REPORTER, anImage()),
+        service.upload(ISSUE_ID, REPORTER, anImage(), [Role.CITIZEN]),
       ).rejects.toBeInstanceOf(ConflictException);
     });
   });
@@ -225,7 +234,7 @@ describe('IssueMediaService', () => {
       issuesService.findOne.mockResolvedValue(claimedIssue(STRANGER));
 
       await expect(
-        service.upload(ISSUE_ID, REPORTER, anImage()),
+        service.upload(ISSUE_ID, REPORTER, anImage(), [Role.CITIZEN]),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
@@ -236,8 +245,64 @@ describe('IssueMediaService', () => {
       });
 
       await expect(
-        service.upload(ISSUE_ID, STRANGER, anImage()),
+        service.upload(ISSUE_ID, STRANGER, anImage(), [Role.CITIZEN]),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    // A restricted issue has no volunteer and never will, so the agency doing
+    // the work is the one attaching the evidence.
+    it('lets an agency attach proof to a restricted issue', async () => {
+      issuesService.findOne.mockResolvedValue({
+        _id: new Types.ObjectId(ISSUE_ID),
+        status: IssueStatus.OPEN,
+        hazard: HazardLevel.RESTRICTED,
+        reportedBy: new Types.ObjectId(REPORTER),
+      });
+
+      const stream = new EventEmitter() as EventEmitter & {
+        id: Types.ObjectId;
+        end: (buf: Buffer) => void;
+      };
+      stream.id = new Types.ObjectId();
+      stream.end = () => stream.emit('finish');
+      bucket.openUploadStream.mockReturnValue(stream);
+
+      // First find() is the existing-count check, the second is the
+      // post-upload lookup keyed by the new file's _id.
+      bucket.find.mockImplementation((filter: Record<string, unknown>) =>
+        filter._id
+          ? cursorOf([
+              fileDoc({
+                _id: stream.id,
+                metadata: {
+                  issueId: new Types.ObjectId(ISSUE_ID),
+                  uploadedBy: new Types.ObjectId(AGENCY_USER),
+                  contentType: 'image/png',
+                  purpose: MediaPurpose.PROOF,
+                },
+              }),
+            ])
+          : cursorOf([]),
+      );
+
+      const media = await service.upload(ISSUE_ID, AGENCY_USER, anImage(), [
+        Role.AGENCY,
+      ]);
+
+      expect(media.purpose).toBe(MediaPurpose.PROOF);
+    });
+
+    it('still refuses a citizen on a restricted issue', async () => {
+      issuesService.findOne.mockResolvedValue({
+        _id: new Types.ObjectId(ISSUE_ID),
+        status: IssueStatus.OPEN,
+        hazard: HazardLevel.RESTRICTED,
+        reportedBy: new Types.ObjectId(REPORTER),
+      });
+
+      await expect(
+        service.upload(ISSUE_ID, REPORTER, anImage(), [Role.CITIZEN]),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 

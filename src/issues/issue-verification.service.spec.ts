@@ -16,6 +16,7 @@ vi.mock('@anthropic-ai/sdk', () => ({
 }));
 
 const VOLUNTEER = '507f1f77bcf86cd799439044';
+const AGENCY_USER = '507f1f77bcf86cd799439066';
 
 const issue = () =>
   ({
@@ -195,6 +196,28 @@ describe('IssueVerificationService', () => {
       expect(mediaService.readForAssessment).toHaveBeenCalledWith(
         expect.any(String),
         VOLUNTEER,
+        2,
+      );
+    });
+
+    // An agency-resolved issue carries no volunteerId — it has
+    // agencyResolverId instead. Without this fallback the "after" side would
+    // be read for an empty author and come back empty, and the no-proof guard
+    // would record FAILED on every agency-resolved issue.
+    it('reads the agency resolver’s photographs when there is no volunteer', async () => {
+      parse.mockResolvedValue(verdict(true, 0.9));
+      const service = await serviceWith(enabled);
+      const agencyIssue = {
+        ...issue(),
+        volunteerId: undefined,
+        agencyResolverId: new Types.ObjectId(AGENCY_USER),
+      } as never;
+
+      await service.assess(agencyIssue);
+
+      expect(mediaService.readForAssessment).toHaveBeenCalledWith(
+        expect.any(String),
+        AGENCY_USER,
         2,
       );
     });

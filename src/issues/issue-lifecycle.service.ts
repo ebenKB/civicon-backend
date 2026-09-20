@@ -6,7 +6,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Types } from 'mongoose';
-import { AiOutcome, IssueStatus, HazardLevel } from '../contracts/index.js';
+import { AiOutcome, IssueStatus, HazardLevel, Role } from '../contracts/index.js';
 import { CivicPointsService } from '../points/civic-points.service.js';
 import { ChangeStatusDto } from './dto/change-status.dto.js';
 import { ResolveIssueDto } from './dto/resolve-issue.dto.js';
@@ -103,12 +103,15 @@ export class IssueLifecycleService {
 
     // No one may verify their own work. Holds from both RESOLVED and
     // AI_APPROVED, and applies even to a volunteer who also holds the AGENCY
-    // role. The reporter and the volunteer's own IN_PROGRESS/OPEN moves are
-    // untouched — neither of those pays the actor.
-    if (
-      dto.status === IssueStatus.VERIFIED &&
-      issue.volunteerId?.toString() === actorId
-    ) {
+    // role. Widened to agencyResolverId: an agency that resolved a restricted
+    // issue is under the same rule a volunteer already lives under. The
+    // reporter and the volunteer's own IN_PROGRESS/OPEN moves are untouched —
+    // neither of those pays the actor.
+    const isOwnWork =
+      issue.volunteerId?.toString() === actorId ||
+      issue.agencyResolverId?.toString() === actorId;
+
+    if (dto.status === IssueStatus.VERIFIED && isOwnWork) {
       throw new ForbiddenException('You cannot verify work you did yourself');
     }
 
@@ -167,14 +170,20 @@ export class IssueLifecycleService {
     const saved = await issue.save();
 
     // Points follow the status, and never block it: a ledger failure must not
-    // undo a decision an agency has already made.
-    if (dto.status === IssueStatus.VERIFIED) {
+    // undo a decision an agency has already made. Both directions are gated
+    // on volunteerId: an agency-resolved issue pays nobody, so there is
+    // nothing to award or reverse.
+    if (dto.status === IssueStatus.VERIFIED && saved.volunteerId) {
       await this.settlePoints('award', saved, () =>
         this.civicPointsService.awardForVerification(saved),
       );
     }
 
-    if (dto.status === IssueStatus.IN_PROGRESS && wasVerified) {
+    if (
+      dto.status === IssueStatus.IN_PROGRESS &&
+      wasVerified &&
+      saved.volunteerId
+    ) {
       await this.settlePoints('reverse', saved, () =>
         this.civicPointsService.reverseForVerification(saved),
       );
@@ -187,10 +196,36 @@ export class IssueLifecycleService {
     id: string,
     actorId: string,
     dto: ResolveIssueDto,
+    roles: Role[],
   ): Promise<IssueDocument> {
     const issue = await this.issuesService.findOne(id);
-    this.assertTransition(issue.status, IssueStatus.RESOLVED);
-    this.assertIsHolder(issue, actorId);
+
+    const asAgency =
+      issue.hazard === HazardLevel.RESTRICTED && roles.includes(Role.AGENCY);
+
+    if (issue.hazard === HazardLevel.RESTRICTED && !asAgency) {
+      // A restricted issue is never held by a volunteer — claim() refuses it
+      // outright — so anyone reaching this route without the AGENCY role is
+      // refused regardless of the issue's status or who reported it.
+      throw new ForbiddenException(
+        'This issue needs specialist handling and can only be resolved by an agency',
+      );
+    }
+
+    if (asAgency) {
+      // OPEN -> RESOLVED exists only here: there is no claim step for work a
+      // volunteer was never allowed to take.
+      if (
+        issue.status !== IssueStatus.OPEN &&
+        issue.status !== IssueStatus.IN_PROGRESS
+      ) {
+        this.assertTransition(issue.status, IssueStatus.RESOLVED);
+      }
+      issue.agencyResolverId = new Types.ObjectId(actorId);
+    } else {
+      this.assertTransition(issue.status, IssueStatus.RESOLVED);
+      this.assertIsHolder(issue, actorId);
+    }
 
     // Proof is read by author, so evidence left by a previous volunteer does
     // not satisfy this.

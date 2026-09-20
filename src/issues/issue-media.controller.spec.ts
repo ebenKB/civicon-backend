@@ -8,7 +8,7 @@ const ISSUE_ID = '507f1f77bcf86cd799439022';
 const caller = {
   id: '507f1f77bcf86cd799439011',
   email: 'citizen@civicon.test',
-  roles: [],
+  roles: ['CITIZEN'],
 } as never;
 
 const media = {
@@ -55,6 +55,7 @@ describe('IssueMediaController', () => {
       ISSUE_ID,
       '507f1f77bcf86cd799439011',
       file,
+      caller.roles,
     );
   });
 

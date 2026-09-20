@@ -80,9 +80,16 @@ export class IssueVerificationService {
       return undefined;
     }
 
+    // An agency-resolved issue carries no volunteerId — agencyResolverId
+    // names the author instead. Without this fallback the "after" side would
+    // be read for an empty author and come back empty on every agency-
+    // resolved issue, misleading the agency that has to confirm it.
+    const proofAuthor =
+      issue.volunteerId?.toString() ?? issue.agencyResolverId?.toString() ?? '';
+
     const { before, after } = await this.issueMediaService.readForAssessment(
       issue._id.toString(),
-      issue.volunteerId?.toString() ?? '',
+      proofAuthor,
       AI_MAX_IMAGES_PER_SIDE,
     );
 

@@ -179,7 +179,12 @@ export class IssuesController {
     @Body() resolveIssueDto: ResolveIssueDto,
   ) {
     return this.present(
-      await this.issueLifecycleService.resolve(id, user.id, resolveIssueDto),
+      await this.issueLifecycleService.resolve(
+        id,
+        user.id,
+        resolveIssueDto,
+        user.roles,
+      ),
     );
   }
 

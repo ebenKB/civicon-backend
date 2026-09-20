@@ -16,10 +16,12 @@ import type { Connection } from 'mongoose';
 import { ByteRange } from '../common/http/byte-range.js';
 import {
   checkUpload,
+  HazardLevel,
   IssueStatus,
   MEDIA_BUCKET,
   MEDIA_LIMITS,
   MediaPurpose,
+  Role,
 } from '../contracts/index.js';
 import {
   MediaFileDocument,
@@ -72,8 +74,9 @@ export class IssueMediaService implements OnModuleInit {
     issueId: string,
     actorId: string,
     file: UploadedFile,
+    roles: Role[],
   ): Promise<PublicMedia> {
-    const purpose = await this.assertMayAttach(issueId, actorId);
+    const purpose = await this.assertMayAttach(issueId, actorId, roles);
 
     const rejection = checkUpload(file.mimetype, file.size);
     if (rejection?.reason === 'type') {
@@ -182,7 +185,10 @@ export class IssueMediaService implements OnModuleInit {
       );
     }
 
-    await this.assertMayAttach(issueId, actorId);
+    // Deletion is unaffected by this slice — an agency's own proof photo is
+    // still reached only through the volunteer/reporter branches below, since
+    // no role in the RESTRICTED branch is passed here.
+    await this.assertMayAttach(issueId, actorId, []);
     await this.bucket.delete(file._id);
   }
 
@@ -194,8 +200,26 @@ export class IssueMediaService implements OnModuleInit {
   private async assertMayAttach(
     issueId: string,
     actorId: string,
+    roles: Role[],
   ): Promise<MediaPurpose> {
     const issue = await this.issuesService.findOne(issueId);
+
+    // A restricted issue is the agency's to fix, so it is also theirs to
+    // evidence, and nobody else's — not even the citizen who reported it.
+    // Checked ahead of the OPEN/CLAIMED branches below, which would otherwise
+    // let the reporter through on report-time status alone.
+    if (
+      issue.hazard === HazardLevel.RESTRICTED &&
+      (issue.status === IssueStatus.OPEN ||
+        issue.status === IssueStatus.IN_PROGRESS)
+    ) {
+      if (roles.includes(Role.AGENCY)) {
+        return MediaPurpose.PROOF;
+      }
+      throw new ForbiddenException(
+        'This issue needs specialist handling; only an agency can attach evidence',
+      );
+    }
 
     if (issue.status === IssueStatus.OPEN) {
       if (issue.reportedBy.toString() !== actorId) {

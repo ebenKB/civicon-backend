@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Types } from 'mongoose';
-import { AiOutcome, IssueStatus, HazardLevel } from '../contracts/index.js';
+import { AiOutcome, IssueStatus, HazardLevel, Role } from '../contracts/index.js';
 import { CivicPointsService } from '../points/civic-points.service.js';
 import { IssueLifecycleService } from './issue-lifecycle.service.js';
 import { IssueMediaService } from './issue-media.service.js';
@@ -366,9 +366,12 @@ describe('IssueLifecycleService', () => {
     it('records the note and moves to RESOLVED', async () => {
       issuesService.findOne.mockResolvedValue(inProgress());
 
-      const result = await service.resolve(ISSUE_ID, VOLUNTEER, {
-        note: 'Cleared the silt and reset the grate.',
-      });
+      const result = await service.resolve(
+        ISSUE_ID,
+        VOLUNTEER,
+        { note: 'Cleared the silt and reset the grate.' },
+        [Role.CITIZEN],
+      );
 
       expect(result.status).toBe(IssueStatus.RESOLVED);
       expect(result.resolutionNote).toContain('silt');
@@ -380,14 +383,18 @@ describe('IssueLifecycleService', () => {
       mediaService.countProofBy.mockResolvedValue(0);
 
       await expect(
-        service.resolve(ISSUE_ID, VOLUNTEER, { note: 'Done' }),
+        service.resolve(ISSUE_ID, VOLUNTEER, { note: 'Done' }, [
+          Role.CITIZEN,
+        ]),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
     it('counts proof by the current holder, not by anyone', async () => {
       issuesService.findOne.mockResolvedValue(inProgress());
 
-      await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'Done' });
+      await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'Done' }, [
+        Role.CITIZEN,
+      ]);
 
       expect(mediaService.countProofBy).toHaveBeenCalledWith(
         ISSUE_ID,
@@ -399,8 +406,110 @@ describe('IssueLifecycleService', () => {
       issuesService.findOne.mockResolvedValue(inProgress());
 
       await expect(
-        service.resolve(ISSUE_ID, '507f1f77bcf86cd799439055', { note: 'x' }),
+        service.resolve(
+          ISSUE_ID,
+          '507f1f77bcf86cd799439055',
+          { note: 'x' },
+          [Role.CITIZEN],
+        ),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+  });
+
+  describe('an agency resolving a restricted issue', () => {
+    const AGENCY_USER = '507f1f77bcf86cd799439066';
+    const OTHER_AGENCY = '507f1f77bcf86cd799439077';
+    const VOLUNTEER = '507f1f77bcf86cd799439044';
+
+    const issueDoc = (overrides: Record<string, unknown> = {}) => ({
+      _id: new Types.ObjectId(ISSUE_ID),
+      reportedBy: new Types.ObjectId('507f1f77bcf86cd799439011'),
+      save: vi.fn().mockImplementation(function (this: unknown) {
+        return Promise.resolve(this);
+      }),
+      ...overrides,
+    });
+
+    it('records the agency as the resolver, not as a volunteer', async () => {
+      const issue = issueDoc({
+        status: IssueStatus.OPEN,
+        hazard: HazardLevel.RESTRICTED,
+      });
+      issuesService.findOne.mockResolvedValue(issue);
+      mediaService.countProofBy.mockResolvedValue(1);
+
+      const result = await service.resolve(
+        ISSUE_ID,
+        AGENCY_USER,
+        { note: 'Crew attended' },
+        [Role.AGENCY],
+      );
+
+      expect(result.status).toBe(IssueStatus.RESOLVED);
+      expect(result.agencyResolverId?.toString()).toBe(AGENCY_USER);
+      expect(result.volunteerId).toBeUndefined();
+    });
+
+    it('still demands evidence', async () => {
+      issuesService.findOne.mockResolvedValue(
+        issueDoc({ status: IssueStatus.OPEN, hazard: HazardLevel.RESTRICTED }),
+      );
+      mediaService.countProofBy.mockResolvedValue(0);
+
+      await expect(
+        service.resolve(ISSUE_ID, AGENCY_USER, { note: 'Done' }, [
+          Role.AGENCY,
+        ]),
+      ).rejects.toThrow('proof of work');
+    });
+
+    it('refuses a citizen on the same route', async () => {
+      issuesService.findOne.mockResolvedValue(
+        issueDoc({ status: IssueStatus.OPEN, hazard: HazardLevel.RESTRICTED }),
+      );
+
+      await expect(
+        service.resolve(ISSUE_ID, VOLUNTEER, { note: 'Done' }, [
+          Role.CITIZEN,
+        ]),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('pays nobody when there is no volunteer', async () => {
+      const issue = issueDoc({
+        status: IssueStatus.RESOLVED,
+        hazard: HazardLevel.RESTRICTED,
+        agencyResolverId: new Types.ObjectId(AGENCY_USER),
+        volunteerId: undefined,
+      });
+      issuesService.findOne.mockResolvedValue(issue);
+
+      await service.changeStatus(
+        ISSUE_ID,
+        { status: IssueStatus.VERIFIED },
+        OTHER_AGENCY,
+      );
+
+      expect(pointsService.awardForVerification).not.toHaveBeenCalled();
+    });
+
+    // The same rule volunteers live under: you do not sign off your own work.
+    it('refuses the resolving agency user confirming their own fix', async () => {
+      issuesService.findOne.mockResolvedValue(
+        issueDoc({
+          status: IssueStatus.RESOLVED,
+          hazard: HazardLevel.RESTRICTED,
+          agencyResolverId: new Types.ObjectId(AGENCY_USER),
+        }),
+      );
+
+      await expect(
+        service.changeStatus(
+          ISSUE_ID,
+          { status: IssueStatus.VERIFIED },
+          AGENCY_USER,
+        ),
+      ).rejects.toThrow('work you did yourself');
     });
   });
 
@@ -624,7 +733,9 @@ describe('IssueLifecycleService', () => {
     it('stops at RESOLVED when the feature is off', async () => {
       issuesService.findOne.mockResolvedValue(inProgress());
 
-      const result = await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'x' });
+      const result = await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'x' }, [
+        Role.CITIZEN,
+      ]);
 
       expect(result.status).toBe(IssueStatus.RESOLVED);
       expect(result.aiAssessment).toBeUndefined();
@@ -638,7 +749,9 @@ describe('IssueLifecycleService', () => {
         assessedAt: new Date(),
       });
 
-      const result = await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'x' });
+      const result = await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'x' }, [
+        Role.CITIZEN,
+      ]);
 
       // The model may recommend. It may not pay.
       expect(result.status).toBe(IssueStatus.AI_APPROVED);
@@ -658,9 +771,12 @@ describe('IssueLifecycleService', () => {
           assessedAt: new Date(),
         });
 
-        const result = await service.resolve(ISSUE_ID, VOLUNTEER, {
-          note: 'x',
-        });
+        const result = await service.resolve(
+          ISSUE_ID,
+          VOLUNTEER,
+          { note: 'x' },
+          [Role.CITIZEN],
+        );
 
         expect(result.status).toBe(IssueStatus.RESOLVED);
         expect(result.aiAssessment?.outcome).toBe(outcome);
@@ -759,7 +875,9 @@ describe('IssueLifecycleService', () => {
         assessedAt: new Date(),
       });
 
-      await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'x' });
+      await service.resolve(ISSUE_ID, VOLUNTEER, { note: 'x' }, [
+        Role.CITIZEN,
+      ]);
 
       expect(pointsService.awardForVerification).not.toHaveBeenCalled();
     });
