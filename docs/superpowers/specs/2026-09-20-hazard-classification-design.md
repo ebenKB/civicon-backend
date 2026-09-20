@@ -121,9 +121,9 @@ export const HAZARD_MIN_QUESTIONS = 3;
 ```
 
 `src/contracts/hazard-questions.ts` holds the bank: an array of
-`{ id, text, tags, askable }`. `askable: false` marks the entries offered as
-observation checkboxes at report time; the rest are follow-ups the model may
-select. Ids are stable forever — answers are stored against them, and retiring a
+`{ id, text, tags, kind }`, where `kind` is `OBSERVATION` — offered as a
+checkbox at report time, and escalating on its own — or `FOLLOW_UP`, the pool
+the model may select from. Ids are stable forever — answers are stored against them, and retiring a
 question means marking it inactive, never reusing its id.
 
 The initial bank covers electrical, water, traffic, structural, gas and height,
