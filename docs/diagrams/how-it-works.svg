@@ -1,9 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"
      font-family="Inter, 'Helvetica Neue', Helvetica, Arial, sans-serif">
   <defs>
-    <linearGradient id="journey" gradientUnits="userSpaceOnUse" x1="200" y1="0" x2="1720" y2="0">
+    <linearGradient id="journey" gradientUnits="userSpaceOnUse" x1="191" y1="0" x2="1729" y2="0">
       <stop offset="0%"   stop-color="#2C7A78"/>
-      <stop offset="52%"  stop-color="#E0A526"/>
+      <stop offset="18%"  stop-color="#E0A526"/>
+      <stop offset="42%"  stop-color="#1F6B69"/>
+      <stop offset="72%"  stop-color="#E0A526"/>
       <stop offset="100%" stop-color="#2E9E5B"/>
     </linearGradient>
     <radialGradient id="glow" cx="50%" cy="34%" r="70%">
@@ -26,140 +28,169 @@
   <!-- the title block lives in the slide, not the artwork; this recentres what is left -->
   <g transform="translate(0,-58)">
 
-
-  <!-- the verification pair, called out as the heart of the product -->
-  <rect x="992" y="292" width="544" height="298" rx="38" fill="#E0A526" opacity="0.09"/>
-  <rect x="992" y="292" width="544" height="298" rx="38" fill="none" stroke="#D9A43A" stroke-width="2"
+  <!-- two places a person decides: before anyone may touch it, and before anyone is paid -->
+  <rect x="342" y="296" width="210" height="298" rx="36" fill="#E0A526" opacity="0.09"/>
+  <rect x="342" y="296" width="210" height="298" rx="36" fill="none" stroke="#D9A43A" stroke-width="2"
         stroke-dasharray="3 10" opacity="0.5"/>
-  <text x="1264" y="272" text-anchor="middle" font-size="20" font-weight="700" letter-spacing="4.5" fill="#B9861A">THE TRUST LAYER</text>
+  <text x="447" y="276" text-anchor="middle" font-size="19" font-weight="700" letter-spacing="3.5" fill="#B9861A">SAFETY GATE</text>
+
+  <rect x="1111" y="296" width="467" height="298" rx="36" fill="#E0A526" opacity="0.09"/>
+  <rect x="1111" y="296" width="467" height="298" rx="36" fill="none" stroke="#D9A43A" stroke-width="2"
+        stroke-dasharray="3 10" opacity="0.5"/>
+  <text x="1344" y="276" text-anchor="middle" font-size="19" font-weight="700" letter-spacing="3.5" fill="#B9861A">THE TRUST LAYER</text>
 
   <!-- the journey, one continuous track the cards sit on -->
-  <rect x="200" y="410.5" width="1520" height="9" rx="4.5" fill="url(#journey)"/>
+  <rect x="191" y="410.5" width="1538" height="9" rx="4.5" fill="url(#journey)"/>
   <g stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.95">
-    <path d="M 347 407 L 356 415 L 347 423"/>
-    <path d="M 651 407 L 660 415 L 651 423"/>
-    <path d="M 955 407 L 964 415 L 955 423"/>
-    <path d="M 1259 407 L 1268 415 L 1259 423"/>
-    <path d="M 1563 407 L 1572 415 L 1563 423"/>
+    <path d="M 313 407 L 322 415 L 313 423"/>
+    <path d="M 569 407 L 578 415 L 569 423"/>
+    <path d="M 826 407 L 835 415 L 826 423"/>
+    <path d="M 1082 407 L 1091 415 L 1082 423"/>
+    <path d="M 1338 407 L 1347 415 L 1338 423"/>
+    <path d="M 1595 407 L 1604 415 L 1595 423"/>
   </g>
 
   <!-- the loop: a verified fix brings the next report -->
-  <path d="M 1720 566 C 1720 830 1480 880 960 880 C 440 880 200 830 200 574"
+  <path d="M 1729 566 C 1729 836 1480 886 960 886 C 440 886 191 836 191 574"
         fill="none" stroke="#A9B4B2" stroke-width="3" stroke-linecap="round"
         stroke-dasharray="2 11" marker-end="url(#tip)"/>
-  <text x="960" y="928" text-anchor="middle" font-size="22" fill="#8A9795">and the cycle repeats</text>
+  <text x="960" y="934" text-anchor="middle" font-size="22" fill="#8A9795">and the cycle repeats</text>
 
   <!-- cards -->
   <g filter="url(#card)">
-    <rect x="100"  y="330" width="200" height="230" rx="26" fill="#FFFFFF"/>
-    <rect x="404"  y="330" width="200" height="230" rx="26" fill="#FFFFFF"/>
-    <rect x="708"  y="330" width="200" height="230" rx="26" fill="#FFFFFF"/>
-    <rect x="1012" y="330" width="200" height="230" rx="26" fill="#FFFFFF"/>
-    <rect x="1316" y="330" width="200" height="230" rx="26" fill="#FFFFFF"/>
-    <rect x="1620" y="330" width="200" height="230" rx="26" fill="#FFFFFF"/>
+    <rect x="100"  y="330" width="182" height="230" rx="26" fill="#FFFFFF"/>
+    <rect x="356"  y="330" width="182" height="230" rx="26" fill="#FFFFFF"/>
+    <rect x="613"  y="330" width="182" height="230" rx="26" fill="#FFFFFF"/>
+    <rect x="869"  y="330" width="182" height="230" rx="26" fill="#FFFFFF"/>
+    <rect x="1125" y="330" width="182" height="230" rx="26" fill="#FFFFFF"/>
+    <rect x="1382" y="330" width="182" height="230" rx="26" fill="#FFFFFF"/>
+    <rect x="1638" y="330" width="182" height="230" rx="26" fill="#FFFFFF"/>
   </g>
   <g fill="none" stroke="#E6ECEB" stroke-width="1.5">
-    <rect x="100"  y="330" width="200" height="230" rx="26"/>
-    <rect x="404"  y="330" width="200" height="230" rx="26"/>
-    <rect x="708"  y="330" width="200" height="230" rx="26"/>
-    <rect x="1620" y="330" width="200" height="230" rx="26"/>
+    <rect x="100"  y="330" width="182" height="230" rx="26"/>
+    <rect x="613"  y="330" width="182" height="230" rx="26"/>
+    <rect x="869"  y="330" width="182" height="230" rx="26"/>
+    <rect x="1638" y="330" width="182" height="230" rx="26"/>
   </g>
   <g fill="none" stroke="#E0A526" stroke-width="2.5">
-    <rect x="1012" y="330" width="200" height="230" rx="26"/>
-    <rect x="1316" y="330" width="200" height="230" rx="26"/>
+    <rect x="356"  y="330" width="182" height="230" rx="26"/>
+    <rect x="1125" y="330" width="182" height="230" rx="26"/>
+    <rect x="1382" y="330" width="182" height="230" rx="26"/>
   </g>
 
   <!-- icon wells -->
-  <circle cx="200"  cy="415" r="46" fill="#2C7A78" opacity="0.10"/>
-  <circle cx="504"  cy="415" r="46" fill="#1F6B69" opacity="0.10"/>
-  <circle cx="808"  cy="415" r="46" fill="#1F6B69" opacity="0.10"/>
-  <circle cx="1112" cy="415" r="46" fill="#E0A526" opacity="0.16"/>
-  <circle cx="1416" cy="415" r="46" fill="#3B5BA5" opacity="0.12"/>
-  <circle cx="1720" cy="415" r="46" fill="#2E9E5B" opacity="0.12"/>
+  <circle cx="191"  cy="415" r="44" fill="#2C7A78" opacity="0.10"/>
+  <circle cx="447"  cy="415" r="44" fill="#E0A526" opacity="0.16"/>
+  <circle cx="704"  cy="415" r="44" fill="#1F6B69" opacity="0.10"/>
+  <circle cx="960"  cy="415" r="44" fill="#1F6B69" opacity="0.10"/>
+  <circle cx="1216" cy="415" r="44" fill="#E0A526" opacity="0.16"/>
+  <circle cx="1473" cy="415" r="44" fill="#3B5BA5" opacity="0.12"/>
+  <circle cx="1729" cy="415" r="44" fill="#2E9E5B" opacity="0.12"/>
 
   <!-- 1. Report: a photograph of the problem -->
   <g fill="none" stroke="#2C7A78" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="174" y="400" width="52" height="34" rx="7"/>
-    <path d="M 190 400 l 4 -9 h 12 l 4 9"/>
-    <circle cx="200" cy="417" r="9.5"/>
+    <rect x="165" y="400" width="52" height="34" rx="7"/>
+    <path d="M 181 400 l 4 -9 h 12 l 4 9"/>
+    <circle cx="191" cy="417" r="9.5"/>
   </g>
 
-  <!-- 2. Claim: a volunteer plants a flag -->
-  <g fill="none" stroke="#1F6B69" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <line x1="490" y1="390" x2="490" y2="442"/>
-    <path d="M 490 394 L 528 406 L 490 418 Z"/>
+  <!-- 2. Safety check: is this work for a member of the public at all? -->
+  <g fill="none" stroke="#B9861A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 447 390 L 475 440 L 419 440 Z"/>
+    <line x1="447" y1="408" x2="447" y2="422"/>
+    <circle cx="447" cy="430" r="1.8" fill="#B9861A"/>
   </g>
 
-  <!-- 3. Fix and submit: the work itself -->
+  <!-- 3. Claim: a volunteer plants a flag -->
   <g fill="none" stroke="#1F6B69" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="808" cy="415" r="17"/>
-    <circle cx="808" cy="415" r="7.5"/>
+    <line x1="690" y1="390" x2="690" y2="442"/>
+    <path d="M 690 394 L 728 406 L 690 418 Z"/>
+  </g>
+
+  <!-- 4. Fix and submit: the work itself -->
+  <g fill="none" stroke="#1F6B69" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="960" cy="415" r="17"/>
+    <circle cx="960" cy="415" r="7.5"/>
     <g>
-      <rect x="804" y="391" width="8" height="9" rx="2"/>
-      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(45 808 415)"/>
-      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(90 808 415)"/>
-      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(135 808 415)"/>
-      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(180 808 415)"/>
-      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(225 808 415)"/>
-      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(270 808 415)"/>
-      <rect x="804" y="391" width="8" height="9" rx="2" transform="rotate(315 808 415)"/>
+      <rect x="956" y="391" width="8" height="9" rx="2"/>
+      <rect x="956" y="391" width="8" height="9" rx="2" transform="rotate(45 960 415)"/>
+      <rect x="956" y="391" width="8" height="9" rx="2" transform="rotate(90 960 415)"/>
+      <rect x="956" y="391" width="8" height="9" rx="2" transform="rotate(135 960 415)"/>
+      <rect x="956" y="391" width="8" height="9" rx="2" transform="rotate(180 960 415)"/>
+      <rect x="956" y="391" width="8" height="9" rx="2" transform="rotate(225 960 415)"/>
+      <rect x="956" y="391" width="8" height="9" rx="2" transform="rotate(270 960 415)"/>
+      <rect x="956" y="391" width="8" height="9" rx="2" transform="rotate(315 960 415)"/>
     </g>
   </g>
 
-  <!-- 4. AI checks: before against after -->
+  <!-- 5. AI checks: before against after -->
   <g fill="none" stroke="#B9861A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="1080" y="396" width="34" height="27" rx="4" fill="#FFFFFF"/>
-    <path d="M 1085 417 l 7 -8 l 5 5 l 6 -7 l 7 10"/>
-    <rect x="1100" y="414" width="34" height="27" rx="4" fill="#FFFFFF"/>
-    <path d="M 1105 435 l 7 -8 l 5 5 l 6 -7 l 7 10"/>
-    <circle cx="1138" cy="396" r="11"/>
-    <line x1="1146" y1="404" x2="1153" y2="411"/>
+    <rect x="1184" y="396" width="34" height="27" rx="4" fill="#FFFFFF"/>
+    <path d="M 1189 417 l 7 -8 l 5 5 l 6 -7 l 7 10"/>
+    <rect x="1204" y="414" width="34" height="27" rx="4" fill="#FFFFFF"/>
+    <path d="M 1209 435 l 7 -8 l 5 5 l 6 -7 l 7 10"/>
+    <circle cx="1242" cy="396" r="11"/>
+    <line x1="1250" y1="404" x2="1257" y2="411"/>
   </g>
 
-  <!-- 5. Confirm: a person with authority signs it off -->
+  <!-- 6. Confirm: a person with authority signs it off -->
   <g fill="none" stroke="#3B5BA5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M 1416 388 L 1444 399 L 1444 417 C 1444 433 1432 442 1416 446 C 1400 442 1388 433 1388 417 L 1388 399 Z"/>
-    <path d="M 1404 414 L 1412 423 L 1429 404"/>
+    <path d="M 1473 388 L 1501 399 L 1501 417 C 1501 433 1489 442 1473 446 C 1457 442 1445 433 1445 417 L 1445 399 Z"/>
+    <path d="M 1461 414 L 1469 423 L 1486 404"/>
   </g>
 
-  <!-- 6. Points -->
+  <!-- 7. Points -->
   <g fill="none" stroke="#2E9E5B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="1720" cy="415" r="30"/>
-    <path d="M 1720 395 L 1725 408.1 L 1739 408.8 L 1728.1 417.6 L 1731.8 431.2 L 1720 423.5 L 1708.2 431.2 L 1711.9 417.6 L 1701 408.8 L 1715 408.1 Z"/>
+    <circle cx="1729" cy="415" r="30"/>
+    <path d="M 1729 395 L 1734 408.1 L 1748 408.8 L 1737.1 417.6 L 1740.8 431.2 L 1729 423.5 L 1717.2 431.2 L 1720.9 417.6 L 1710 408.8 L 1724 408.1 Z"/>
   </g>
 
   <!-- role pills, straddling each card's top edge -->
-  <g font-size="17" font-weight="700" letter-spacing="2.2" text-anchor="middle" fill="#FFFFFF">
-    <rect x="142"  y="313" width="116" height="34" rx="17" fill="#2C7A78"/><text x="200"  y="336">CITIZEN</text>
-    <rect x="430"  y="313" width="148" height="34" rx="17" fill="#1F6B69"/><text x="504"  y="336">VOLUNTEER</text>
-    <rect x="734"  y="313" width="148" height="34" rx="17" fill="#1F6B69"/><text x="808"  y="336">VOLUNTEER</text>
-    <rect x="1080" y="313" width="64"  height="34" rx="17" fill="#E0A526"/><text x="1112" y="336">AI</text>
-    <rect x="1360" y="313" width="112" height="34" rx="17" fill="#3B5BA5"/><text x="1416" y="336">AGENCY</text>
-    <rect x="1646" y="313" width="148" height="34" rx="17" fill="#1F6B69"/><text x="1720" y="336">VOLUNTEER</text>
+  <g font-size="16" font-weight="700" letter-spacing="2" text-anchor="middle" fill="#FFFFFF">
+    <rect x="136"  y="313" width="110" height="34" rx="17" fill="#2C7A78"/><text x="191"  y="335">CITIZEN</text>
+    <rect x="417"  y="313" width="60"  height="34" rx="17" fill="#E0A526"/><text x="447"  y="335">AI</text>
+    <rect x="634"  y="313" width="140" height="34" rx="17" fill="#1F6B69"/><text x="704"  y="335">VOLUNTEER</text>
+    <rect x="890"  y="313" width="140" height="34" rx="17" fill="#1F6B69"/><text x="960"  y="335">VOLUNTEER</text>
+    <rect x="1186" y="313" width="60"  height="34" rx="17" fill="#E0A526"/><text x="1216" y="335">AI</text>
+    <rect x="1420" y="313" width="106" height="34" rx="17" fill="#3B5BA5"/><text x="1473" y="335">AGENCY</text>
+    <rect x="1659" y="313" width="140" height="34" rx="17" fill="#1F6B69"/><text x="1729" y="335">VOLUNTEER</text>
   </g>
 
-  <!-- labels and the detail that makes each step credible -->
-  <g text-anchor="middle" fill="#0F3B3A" font-size="31" font-weight="700">
-    <text x="200"  y="530">Report</text>
-    <text x="504"  y="530">Claim</text>
-    <text x="808"  y="530">Fix &amp; Submit</text>
-    <text x="1112" y="530">AI checks</text>
-    <text x="1416" y="530">Confirm</text>
-    <text x="1720" y="530">Points</text>
+  <!-- labels -->
+  <g text-anchor="middle" fill="#0F3B3A" font-size="27" font-weight="700">
+    <text x="191"  y="528">Report</text>
+    <text x="447"  y="528">Safety check</text>
+    <text x="704"  y="528">Claim</text>
+    <text x="960"  y="528">Fix &amp; Submit</text>
+    <text x="1216" y="528">AI checks</text>
+    <text x="1473" y="528">Confirm</text>
+    <text x="1729" y="528">Points</text>
   </g>
 
-  <!-- the fallback lane: when the AI is not confident -->
-  <path d="M 1112 566 C 1112 648 1150 700 1204 700" fill="none" stroke="#D9A43A" stroke-width="3"
+  <!-- where a person decides instead -->
+  <path d="M 447 566 L 447 694" fill="none" stroke="#D9A43A" stroke-width="3"
         stroke-linecap="round" marker-end="url(#tipAmber)"/>
-  <path d="M 1400 700 C 1436 660 1416 616 1416 572" fill="none" stroke="#C7B48A" stroke-width="3"
+  <path d="M 600 730 C 662 706 704 648 704 572" fill="none" stroke="#C7B48A" stroke-width="3"
         stroke-linecap="round" stroke-dasharray="2 10" marker-end="url(#tipAmber)"/>
-
-  <rect x="1104" y="700" width="300" height="120" rx="24" fill="#FFFDF5" stroke="#E7D4A8" stroke-width="2"/>
-  <circle cx="1166" cy="760" r="26" fill="#E0A526" opacity="0.14"/>
+  <rect x="297" y="700" width="300" height="120" rx="24" fill="#FFFDF5" stroke="#E7D4A8" stroke-width="2"/>
+  <circle cx="359" cy="760" r="26" fill="#E0A526" opacity="0.14"/>
   <g fill="none" stroke="#B9861A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-    <circle cx="1166" cy="752" r="11"/>
-    <path d="M 1148 780 a 18 18 0 0 1 36 0"/>
+    <circle cx="359" cy="752" r="11"/>
+    <path d="M 341 780 a 18 18 0 0 1 36 0"/>
   </g>
-  <text x="1208" y="770" font-size="26" font-weight="700" fill="#0F3B3A">Human review</text>
+  <text x="401" y="770" font-size="24" font-weight="700" fill="#0F3B3A">Agency decides</text>
+
+  <path d="M 1216 566 L 1216 694" fill="none" stroke="#D9A43A" stroke-width="3"
+        stroke-linecap="round" marker-end="url(#tipAmber)"/>
+  <path d="M 1369 730 C 1432 706 1473 648 1473 572" fill="none" stroke="#C7B48A" stroke-width="3"
+        stroke-linecap="round" stroke-dasharray="2 10" marker-end="url(#tipAmber)"/>
+  <rect x="1066" y="700" width="300" height="120" rx="24" fill="#FFFDF5" stroke="#E7D4A8" stroke-width="2"/>
+  <circle cx="1128" cy="760" r="26" fill="#E0A526" opacity="0.14"/>
+  <g fill="none" stroke="#B9861A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="1128" cy="752" r="11"/>
+    <path d="M 1110 780 a 18 18 0 0 1 36 0"/>
+  </g>
+  <text x="1170" y="770" font-size="24" font-weight="700" fill="#0F3B3A">Human review</text>
+
   </g>
 </svg>
