@@ -50,6 +50,9 @@ export class IssuesService {
     if (query.aiOutcome) {
       filter['aiAssessment.outcome'] = query.aiOutcome;
     }
+    if (query.hazard) {
+      filter.hazard = query.hazard;
+    }
 
     return this.issueModel
       .find(filter)

@@ -22,6 +22,7 @@ import { ChangeStatusDto } from './dto/change-status.dto.js';
 import { CreateIssueDto } from './dto/create-issue.dto.js';
 import { ListIssuesQuery } from './dto/list-issues.query.js';
 import { ResolveIssueDto } from './dto/resolve-issue.dto.js';
+import { SetHazardDto } from './dto/set-hazard.dto.js';
 import { SubmitClassificationDto } from './dto/submit-classification.dto.js';
 import { UpdateIssueDto } from './dto/update-issue.dto.js';
 import { IssueHazardService } from './issue-hazard.service.js';
@@ -195,6 +196,18 @@ export class IssuesController {
   ) {
     return this.present(
       await this.issueHazardService.submit(id, user.id, submitClassificationDto),
+    );
+  }
+
+  @Patch(':id/hazard')
+  @Roles(Role.AGENCY, Role.ADMIN)
+  async setHazard(
+    @Param('id', ParseObjectIdPipe) id: string,
+    @Body() setHazardDto: SetHazardDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.present(
+      await this.issueHazardService.setLevel(id, user.id, user.roles, setHazardDto),
     );
   }
 }

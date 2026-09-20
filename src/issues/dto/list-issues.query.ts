@@ -9,6 +9,7 @@ import {
 } from 'class-validator';
 import {
   AiOutcome,
+  HazardLevel,
   IssueCategory,
   IssueStatus,
 } from '../../contracts/index.js';
@@ -34,6 +35,11 @@ export class ListIssuesQuery {
   @IsOptional()
   @IsEnum(AiOutcome)
   aiOutcome?: AiOutcome;
+
+  /** The hazard queue: the unsure ones, and the reports never submitted. */
+  @IsOptional()
+  @IsEnum(HazardLevel)
+  hazard?: HazardLevel;
 
   // Query parameters arrive as strings and enableImplicitConversion is off, so
   // @Type is what makes @IsInt meaningful here.

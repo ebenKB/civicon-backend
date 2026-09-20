@@ -19,10 +19,12 @@ import {
   HAZARD_MIN_QUESTIONS,
   HazardLevel,
   HazardSource,
+  Role,
   findQuestion,
   followUpIds,
 } from '../contracts/index.js';
 import type { HazardAnswer, HazardAssessment } from '../contracts/index.js';
+import type { SetHazardDto } from './dto/set-hazard.dto.js';
 import type { SubmitClassificationDto } from './dto/submit-classification.dto.js';
 import { IssueMediaService } from './issue-media.service.js';
 import type { MediaBytes } from './issue-media.service.js';
@@ -242,6 +244,31 @@ export class IssueHazardService {
     // Cleared on the second pass whatever happens: one round of questions,
     // then a decision or a human.
     issue.pendingQuestions = answering ? [] : questionIds;
+
+    return issue.save();
+  }
+
+  /**
+   * An agency or admin decides. Their decision closes the question round: a
+   * late answer must not re-open a gate a person has already ruled on.
+   */
+  async setLevel(
+    issueId: string,
+    actorId: string,
+    roles: Role[],
+    dto: SetHazardDto,
+  ): Promise<IssueDocument> {
+    const issue = await this.issuesService.findOne(issueId);
+
+    issue.hazard = dto.level;
+    issue.hazardAssessment = {
+      level: dto.level,
+      source: roles.includes(Role.ADMIN) ? HazardSource.ADMIN : HazardSource.AGENCY,
+      reasoning: dto.reason,
+      decidedBy: actorId,
+      assessedAt: new Date(),
+    };
+    issue.pendingQuestions = [];
 
     return issue.save();
   }

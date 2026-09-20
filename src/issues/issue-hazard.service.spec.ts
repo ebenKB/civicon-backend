@@ -13,6 +13,7 @@ import {
   HazardLevel,
   HazardSource,
   IssueCategory,
+  Role,
 } from '../contracts/index.js';
 import { IssueMediaService } from './issue-media.service.js';
 import { IssueHazardService } from './issue-hazard.service.js';
@@ -429,6 +430,65 @@ describe('IssueHazardService', () => {
           answers: [{ questionId: 'elec-1', answer: HazardAnswer.NO }],
         }),
       ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe('setLevel', () => {
+    const AGENCY_ID = new Types.ObjectId().toString();
+    const ADMIN_ID = new Types.ObjectId().toString();
+
+    const saved = () => {
+      const document = issue({
+        hazard: HazardLevel.UNCLASSIFIED,
+        save: vi.fn().mockImplementation(function (this: unknown) { return this; }),
+      });
+      return document;
+    };
+
+    it('records who decided and why', async () => {
+      const document = saved();
+      document.hazard = HazardLevel.NEEDS_REVIEW;
+      document.pendingQuestions = ['elec-1'];
+      issuesService.findOne.mockResolvedValue(document);
+      const service = await serviceWith(enabled);
+
+      const result = await service.setLevel(
+        document._id.toString(), AGENCY_ID, [Role.AGENCY],
+        { level: HazardLevel.RESTRICTED, reason: 'Live cable, utility only' },
+      );
+
+      expect(result.hazard).toBe(HazardLevel.RESTRICTED);
+      expect(result.hazardAssessment?.source).toBe(HazardSource.AGENCY);
+      expect(result.hazardAssessment?.decidedBy).toBe(AGENCY_ID);
+      expect(result.hazardAssessment?.reasoning).toBe('Live cable, utility only');
+    });
+
+    it('marks an admin decision as an admin decision', async () => {
+      const document = saved();
+      issuesService.findOne.mockResolvedValue(document);
+      const service = await serviceWith(enabled);
+
+      const result = await service.setLevel(
+        document._id.toString(), ADMIN_ID, [Role.ADMIN],
+        { level: HazardLevel.UNRESTRICTED, reason: 'Ordinary streetlight' },
+      );
+
+      expect(result.hazardAssessment?.source).toBe(HazardSource.ADMIN);
+    });
+
+    // A decided issue must not be re-opened by a late answer.
+    it('clears any pending questions', async () => {
+      const document = saved();
+      document.pendingQuestions = ['elec-1', 'elec-2', 'water-1'];
+      issuesService.findOne.mockResolvedValue(document);
+      const service = await serviceWith(enabled);
+
+      const result = await service.setLevel(
+        document._id.toString(), AGENCY_ID, [Role.AGENCY],
+        { level: HazardLevel.UNRESTRICTED, reason: 'Checked on site' },
+      );
+
+      expect(result.pendingQuestions).toEqual([]);
     });
   });
 });
