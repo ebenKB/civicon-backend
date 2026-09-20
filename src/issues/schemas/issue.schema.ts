@@ -2,13 +2,16 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Schema as MongooseSchema, Types } from 'mongoose';
 import {
   AiOutcome,
+  HazardAnswer,
+  HazardLevel,
+  HazardSource,
   IssueCategory,
   IssueStatus,
 } from '../../contracts/index.js';
-// `import type`: AiAssessment appears in a decorated signature, which
-// isolatedModules + emitDecoratorMetadata require to be erased. AiOutcome above
-// stays a value import because Object.values() needs it at runtime.
-import type { AiAssessment } from '../../contracts/index.js';
+// `import type`: AiAssessment and HazardAssessment appear in decorated signatures, which
+// isolatedModules + emitDecoratorMetadata require to be erased. Other imports above
+// stay as value imports because Object.values() needs them at runtime.
+import type { AiAssessment, HazardAssessment } from '../../contracts/index.js';
 
 export type IssueDocument = HydratedDocument<Issue>;
 
@@ -105,6 +108,60 @@ export class Issue {
   })
   aiAssessment?: AiAssessment;
 
+  /**
+   * Whether a volunteer may take this on. Written only by IssueHazardService
+   * and the hazard route, the same way status belongs to IssueLifecycleService.
+   */
+  @Prop({
+    type: String,
+    required: true,
+    enum: Object.values(HazardLevel),
+    default: HazardLevel.UNCLASSIFIED,
+    index: true,
+  })
+  hazard: HazardLevel;
+
+  @Prop({
+    type: {
+      level: { type: String, enum: Object.values(HazardLevel), required: true },
+      source: { type: String, enum: Object.values(HazardSource), required: true },
+      confidence: { type: Number },
+      reasoning: { type: String },
+      model: { type: String },
+      decidedBy: { type: String },
+      assessedAt: { type: Date, required: true },
+    },
+    _id: false,
+  })
+  hazardAssessment?: HazardAssessment;
+
+  /** Question ids the reporter ticked when reporting. Escalate-only. */
+  @Prop({ type: [String], default: [] })
+  observations: string[];
+
+  /** Question ids sent to the reporter and not yet answered or superseded. */
+  @Prop({ type: [String] })
+  pendingQuestions?: string[];
+
+  @Prop({
+    type: [
+      {
+        questionId: { type: String, required: true },
+        answer: { type: String, enum: Object.values(HazardAnswer), required: true },
+      },
+    ],
+    _id: false,
+  })
+  answers?: { questionId: string; answer: HazardAnswer }[];
+
+  /**
+   * The agency user who recorded a fix on a restricted issue. Distinct from
+   * volunteerId: it pays no points, and it is the other identity that may not
+   * confirm its own work.
+   */
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+  agencyResolverId?: Types.ObjectId;
+
   // Supplied by `timestamps: true`. Declared without @Prop so they are typed on
   // the document without being redeclared as schema paths.
   createdAt: Date;
@@ -118,3 +175,6 @@ IssueSchema.index({ status: 1, createdAt: -1 });
 
 // Serves the agency's review queue: everything not APPROVED needs a human.
 IssueSchema.index({ 'aiAssessment.outcome': 1 });
+
+// Serves the hazard queue: work that a volunteer may/may not do.
+IssueSchema.index({ hazard: 1 });

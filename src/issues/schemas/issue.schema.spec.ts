@@ -1,4 +1,5 @@
-import { IssueCategory, IssueStatus } from '../../contracts/index.js';
+import mongoose from 'mongoose';
+import { IssueCategory, IssueStatus, HazardLevel } from '../../contracts/index.js';
 import { IssueSchema } from './issue.schema.js';
 
 // This spec imports IssueSchema as a VALUE on purpose. A spec that imports only
@@ -36,5 +37,42 @@ describe('IssueSchema', () => {
     for (const field of ['title', 'description', 'category', 'location']) {
       expect(IssueSchema.path(field).isRequired).toBe(true);
     }
+  });
+});
+
+describe('Issue hazard fields', () => {
+  const Model = mongoose.models.IssueHazardSpec ??
+    mongoose.model('IssueHazardSpec', IssueSchema);
+
+  // An issue is unclaimable the moment it exists. Claimable is something it
+  // has to earn, never the state it starts in.
+  it('starts UNCLASSIFIED', () => {
+    const issue = new Model({
+      title: 'Blocked drain',
+      description: 'Standing water.',
+      category: 'DRAINAGE',
+      location: 'Market Street',
+      reportedBy: new mongoose.Types.ObjectId(),
+    });
+
+    expect(issue.hazard).toBe(HazardLevel.UNCLASSIFIED);
+    expect(issue.observations).toEqual([]);
+  });
+
+  it('rejects a hazard outside the enum', () => {
+    const issue = new Model({
+      title: 'Blocked drain',
+      description: 'Standing water.',
+      category: 'DRAINAGE',
+      location: 'Market Street',
+      reportedBy: new mongoose.Types.ObjectId(),
+      hazard: 'PROBABLY_FINE',
+    });
+
+    expect(issue.validateSync()?.errors.hazard).toBeDefined();
+  });
+
+  it('indexes hazard, because it is a queue', () => {
+    expect(IssueSchema.indexes().some(([fields]) => 'hazard' in fields)).toBe(true);
   });
 });
