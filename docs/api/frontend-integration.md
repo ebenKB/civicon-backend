@@ -248,7 +248,6 @@ Every issue endpoint returns this exact shape. Optional fields are absent (not
     confidence?: number         // 0–1; absent when a human decided
     reasoning?: string          // the model's reasoning, or the human's mandatory reason
     model?: string
-    decidedBy?: string          // the deciding user's id, when a human decided
     assessedAt: string
   }
   observations: string[]        // question ids the reporter ticked when reporting
@@ -345,6 +344,17 @@ Same four fields, all optional. Send only what changed.
 what they saw isn't an admin power)
 **409** the issue has moved past OPEN and can no longer be edited
 
+**Editing withdraws a clearance.** If the issue was `UNRESTRICTED` and you change
+`title`, `description`, `category` or `location`, it drops back to
+`UNCLASSIFIED` and stops being claimable — the verdict was about text that no
+longer exists, so it has to be classified again. The response carries the new
+`hazard`, so read it rather than assuming the edit was cosmetic, and send the
+reporter back through step 3.
+
+A `RESTRICTED` or `NEEDS_REVIEW` issue is **not** reset by an edit: an edit can
+take an issue out of the claimable state, never out of a restriction. And
+`observations` cannot be changed here at all — sending the key is a **400**.
+
 ### 4a. Hazard classification — the three-step flow
 
 Not every issue is safe for a member of the public to fix. `hazard` gates
@@ -439,10 +449,11 @@ override any hazard level by hand).
 Only `RESTRICTED` and `UNRESTRICTED` are settable here — `NEEDS_REVIEW` and
 `UNCLASSIFIED` are states the system arrives at, never ones a person chooses.
 
-**200** → the updated `Issue`, `hazardAssessment.source` set to `AGENCY` or
-`ADMIN` and `decidedBy` set to the caller's id. **400** no `reason` (capped at
-500 characters, same as `statusReason`). **403** a citizen calling this route
-at all.
+**200** → the updated `Issue`, with `hazardAssessment.source` set to `AGENCY` or
+`ADMIN`. Which staff user decided is recorded server-side but deliberately not
+returned: this payload is served on token-free public routes. **400** no
+`reason` (capped at 500 characters, same as `statusReason`). **403** a citizen
+calling this route at all.
 
 ### The three claim refusals
 
@@ -623,9 +634,20 @@ the client doesn't choose:
 
 | Issue status | Who may upload | Stored as |
 |---|---|---|
+| `RESTRICTED`, while `OPEN` / `CLAIMED` / `IN_PROGRESS` | an agency only | `PROOF` |
 | `OPEN` | the reporter only | `REPORT` (the "before" photo) |
 | `CLAIMED` / `IN_PROGRESS` | the holding volunteer only | `PROOF` (the "after" photo) |
 | anything else | nobody | **409** |
+
+The hazard row is checked first, so on a restricted issue neither the reporter
+nor a volunteer holding it may attach anything — the work is the agency's, and
+so is the evidence. That holds even for an issue a volunteer claimed before it
+was reclassified.
+
+**Attaching a `REPORT` photo withdraws a clearance**, the same way editing the
+text does: new evidence the classifier never saw means an `UNRESTRICTED` issue
+drops back to `UNCLASSIFIED` and must be classified again. A `PROOF` upload
+never affects the hazard.
 
 **201** → the `Media` object · **400** no file sent · **403** not yours to attach ·
 **409** over 5 files, or the status forbids it · **413** too big · **415** wrong type
@@ -682,8 +704,10 @@ already embed the media.
 
 ### DELETE /issues/media/:mediaId
 
-**204**, no body. Same permission rule as upload: the reporter while OPEN, the
-holder while CLAIMED/IN_PROGRESS.
+**204**, no body. **You may only delete a file you uploaded yourself.** Issue
+ownership is not enough — since an agency can attach proof to a restricted issue
+that is still `OPEN`, a reporter deleting "their" issue's media could otherwise
+delete the agency's evidence. **403** otherwise.
 
 ---
 
