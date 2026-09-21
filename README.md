@@ -58,17 +58,30 @@ $ docker compose down -v
 ### Seeding sample data
 
 ```bash
-# upsert the sample users (safe to re-run)
+# upsert the sample users and issues (safe to re-run)
 $ npm run seed
 
-# wipe the users collection first, then seed
-$ npm run seed -- --fresh
+# clear every issue and reseed them, keeping all accounts
+$ npm run seed:reset
+
+# wipe everything, accounts included, then seed
+$ npm run seed:fresh
 ```
+
+**`seed:reset` is the one to use between demo runs.** It clears the issue side —
+issues, their photos and videos, and the points ledger — then puts the four
+sample issues back, but leaves every account alone, so anyone who registered
+during a demo can still sign in. Because the ledger is emptied, it also resets
+each user's cached points balance to 0; otherwise a volunteer would go on
+showing points against an empty history.
+
+`seed:fresh` does all of that and deletes the accounts too. Use it when you want
+a genuinely clean database.
 
 Sample records live in [`src/seed.ts`](src/seed.ts). Every seeded issue gets
 its "before" photo from [`seed/images/`](seed/images/README.md), which lists the
 exact filenames; an image not added yet is replaced by a 1×1 placeholder, so the
-seed always runs. After adding photos, reseed with `--fresh` to swap them in.
+seed always runs. After adding photos, run `npm run seed:reset` to swap them in.
 
 ### Demo accounts
 

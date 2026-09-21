@@ -16,6 +16,8 @@
     "start:prod": "node dist/main",
     "lint": "oxlint src/ test/",
     "seed": "nest build && node dist/seed.js",
+    "seed:reset": "npm run seed -- --reset-issues",
+    "seed:fresh": "npm run seed -- --fresh",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",

@@ -156,9 +156,16 @@ async function seed() {
     // change of cost factor or algorithm cannot leave stale hashes behind.
     const passwordService = app.get(PasswordService);
 
-    // --fresh wipes the collection first; otherwise the seed upserts, so
-    // re-running it is safe and won't trip the unique email index.
-    if (process.argv.includes('--fresh')) {
+    // --fresh wipes everything, users included. --reset-issues clears only
+    // the issue side — issues, their media, and the points ledger — and keeps
+    // every account, so people who registered during a demo can still sign
+    // in. Without either flag the seed upserts, so re-running it is safe and
+    // won't trip the unique email index.
+    const fresh = process.argv.includes('--fresh');
+    const resetIssues = fresh || process.argv.includes('--reset-issues');
+    const mode = fresh ? '--fresh' : '--reset-issues';
+
+    if (fresh) {
       const { deletedCount } = await userModel.deleteMany({});
       report(`--fresh: removed ${deletedCount} existing user(s)`);
     }
@@ -188,9 +195,9 @@ async function seed() {
     report(`total users in collection: ${await userModel.countDocuments()}`);
     const issueModel = app.get<Model<IssueDocument>>(getModelToken(Issue.name));
 
-    if (process.argv.includes('--fresh')) {
+    if (resetIssues) {
       const { deletedCount } = await issueModel.deleteMany({});
-      report(`--fresh: removed ${deletedCount} existing issue(s)`);
+      report(`${mode}: removed ${deletedCount} existing issue(s)`);
 
       // Media belongs to issues, so it goes with them. Dropping the bucket
       // collections is the only way to clear GridFS wholesale.
@@ -198,7 +205,7 @@ async function seed() {
       for (const name of [`${MEDIA_BUCKET}.files`, `${MEDIA_BUCKET}.chunks`]) {
         await db?.collection(name).deleteMany({});
       }
-      report('--fresh: removed existing issue media');
+      report(`${mode}: removed existing issue media`);
 
       // The ledger belongs to issues too: a fresh issue collection with a
       // stale ledger would leave civicPointsCached disagreeing with reality.
@@ -206,8 +213,22 @@ async function seed() {
         ?.collection('point_transactions')
         .deleteMany({});
       report(
-        `--fresh: removed ${pointsResult?.deletedCount ?? 0} existing point transaction(s)`,
+        `${mode}: removed ${pointsResult?.deletedCount ?? 0} existing point transaction(s)`,
       );
+
+      // With the ledger gone, every cached balance is now wrong. Under
+      // --fresh the users were recreated at the default of 0 anyway; under
+      // --reset-issues they survive, so a demo volunteer would otherwise keep
+      // showing points against an empty history.
+      const zeroed = await userModel.updateMany(
+        { civicPointsCached: { $ne: 0 } },
+        { $set: { civicPointsCached: 0 } },
+      );
+      if (zeroed.modifiedCount > 0) {
+        report(
+          `${mode}: reset ${zeroed.modifiedCount} cached point balance(s)`,
+        );
+      }
     }
 
     // Reporter emails resolve to ids here rather than being hard-coded, so the
