@@ -320,5 +320,4 @@ describe('Issue hazard classification (e2e)', () => {
     }
     expect(body.observations[0].tags).toBeUndefined();
   });
-
 });

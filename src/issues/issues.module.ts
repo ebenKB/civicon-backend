@@ -18,7 +18,11 @@ import { Issue, IssueSchema } from './schemas/issue.schema.js';
     PointsModule,
     UsersModule,
   ],
-  controllers: [IssuesController, HazardQuestionsController, IssueMediaController],
+  controllers: [
+    IssuesController,
+    HazardQuestionsController,
+    IssueMediaController,
+  ],
   providers: [
     IssuesService,
     IssueLifecycleService,
